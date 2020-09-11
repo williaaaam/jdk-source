@@ -122,6 +122,13 @@ import java.io.*;
  * @see     TreeMap
  * @since JDK1.0
  */
+
+/**
+ * HashTable大部分方法都加了synchronized关键字，例如get(),put(),size(),isEmpty(),keys(),contains()等，并发性能较低。
+ * get读操作之间互不影响，但还是加了锁，会锁住整张表，不适合用在高并发场景下
+ * @param <K>
+ * @param <V>
+ */
 public class Hashtable<K,V>
     extends Dictionary<K,V>
     implements Map<K,V>, Cloneable, java.io.Serializable {

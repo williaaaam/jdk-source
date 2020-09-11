@@ -2002,6 +2002,11 @@ public class Collections {
     /**
      * @serial include
      */
+    /**
+     * SynchronizedMap所有方法都加了synchronized同步语句块,会锁住整张表。效率低下
+     * @param <K>
+     * @param <V>
+     */
     private static class SynchronizedMap<K,V>
         implements Map<K,V>, Serializable {
         private static final long serialVersionUID = 1978198479659022715L;

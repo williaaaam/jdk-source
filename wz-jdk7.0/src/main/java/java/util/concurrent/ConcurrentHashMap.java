@@ -34,13 +34,11 @@
  */
 
 package java.util.concurrent;
-import java.util.concurrent.locks.*;
-import java.util.*;
-import java.io.Serializable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.ObjectStreamField;
+import java.io.Serializable;
+import java.util.*;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A hash table supporting full concurrency of retrievals and
@@ -100,6 +98,14 @@ import java.io.ObjectStreamField;
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  */
+
+/**
+ * ConcurrentHashMap采用锁分段技术,每个部分都是一个Segment
+ * 本质上还是链表+数组的形式存储键值对
+ * 从整体一看，ConcurrentHashMap由Segment组成的数组，每个Segment里边是由HashEntry组成的数组，HashEntry之间又可以形成单向链表
+ * @param <K>
+ * @param <V>
+ */
 public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         implements ConcurrentMap<K, V>, Serializable {
     private static final long serialVersionUID = 7249069246763182397L;
@@ -133,18 +139,23 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * The default initial capacity for this table,
      * used when not otherwise specified in a constructor.
      */
+    /**
+     * 默认初始化容量，这个和 HashMap中的容量是一个概念，表示的是整个 Map的容量
+     */
     static final int DEFAULT_INITIAL_CAPACITY = 16;
 
     /**
      * The default load factor for this table, used when not
      * otherwise specified in a constructor.
      */
+    // 默认加载因子
     static final float DEFAULT_LOAD_FACTOR = 0.75f;
 
     /**
      * The default concurrency level for this table, used when not
      * otherwise specified in a constructor.
      */
+    //默认的并发级别，这个参数决定了 Segment 数组的长度
     static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 
     /**
@@ -153,6 +164,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * be a power of two <= 1<<30 to ensure that entries are indexable
      * using ints.
      */
+    //最大的容量
     static final int MAXIMUM_CAPACITY = 1 << 30;
 
     /**
@@ -160,12 +172,15 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * of two, at least two to avoid immediate resizing on next use
      * after lazy construction.
      */
+    //每个Segment中table数组的最小长度为2，且必须是2的n次幂。
+    //由于每个Segment是懒加载的，用的时候才会初始化，因此为了避免使用时立即调整大小，设定了最小容量2
     static final int MIN_SEGMENT_TABLE_CAPACITY = 2;
 
     /**
      * The maximum number of segments to allow; used to bound
      * constructor arguments. Must be power of two less than 1 << 24.
      */
+    //用于限制Segment数量的最大值，必须是2的n次幂
     static final int MAX_SEGMENTS = 1 << 16; // slightly conservative
 
     /**
@@ -174,6 +189,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * unbounded retries if tables undergo continuous modification
      * which would make it impossible to obtain an accurate result.
      */
+    //在size方法和containsValue方法，会优先采用乐观的方式不加锁，直到重试次数达到2，才会对所有Segment加锁
+    //这个值的设定，是为了避免无限次的重试。后边size方法会详讲怎么实现乐观机制的。
     static final int RETRIES_BEFORE_LOCK = 2;
 
     /* ---------------- Fields -------------- */
@@ -239,16 +256,19 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * Mask value for indexing into segments. The upper bits of a
      * key's hash code are used to choose the segment.
      */
+    //segment掩码值，用于根据元素的hash值定位所在的 Segment 下标
     final int segmentMask;
 
     /**
      * Shift value for indexing within segments.
      */
+    //和 segmentMask 配合使用来定位 Segment 的数组下标
     final int segmentShift;
 
     /**
      * The segments, each of which is a specialized hash table.
      */
+    // Segment 组成的数组，每一个 Segment 都可以看做是一个特殊的 HashMap
     final Segment<K,V>[] segments;
 
     transient Set<K> keySet;
@@ -259,10 +279,13 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * ConcurrentHashMap list entry. Note that this is never exported
      * out as a user-visible Map.Entry.
      */
+    // HashEntry存在于每个Segment中,用于存储键值对的具体数据和维护单向链表的关系
     static final class HashEntry<K,V> {
         final int hash;
         final K key;
+        // volatile修饰，保证内存可见性和通过内存屏障实现禁止指令重排序
         volatile V value;
+        // 指向下一个节点
         volatile HashEntry<K,V> next;
 
         HashEntry(int hash, K key, V value, HashEntry<K,V> next) {
@@ -347,6 +370,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * subclasses from ReentrantLock opportunistically, just to
      * simplify some locking and avoid separate construction.
      */
+
     static final class Segment<K,V> extends ReentrantLock implements Serializable {
         /*
          * Segments maintain a table of entry lists that are always
@@ -383,6 +407,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
          * number of retries maintains cache acquired while locating
          * nodes.
          */
+        //这是在 scanAndLockForPut 方法中用到的一个参数，用于计算最大重试次数
+        //获取当前可用的处理器的数量，若大于1，则返回64，否则返回1。
         static final int MAX_SCAN_RETRIES =
             Runtime.getRuntime().availableProcessors() > 1 ? 64 : 1;
 
@@ -390,12 +416,14 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
          * The per-segment table. Elements are accessed via
          * entryAt/setEntryAt providing volatile semantics.
          */
+        //用于表示每个Segment中的 table，是一个用HashEntry组成的数组
         transient volatile HashEntry<K,V>[] table;
 
         /**
          * The number of elements. Accessed only either within locks
          * or among other volatile reads that maintain visibility.
          */
+        //Segment中的元素个数，每个Segment单独计数（下边的几个参数同样的都是单独计数
         transient int count;
 
         /**
@@ -405,6 +433,9 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
          * and size() methods.  Accessed only either within locks or
          * among other volatile reads that maintain visibility.
          */
+        // 每次table结构修改时，put, remove等，此变量都会递增
+        //当前Segment扩容的阈值，同HashMap计算方法一样也是容量乘以加载因子
+        //需要知道的是，每个Segment都是单独处理扩容的，互相之间不会产生影响
         transient int modCount;
 
         /**
@@ -428,7 +459,20 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             this.table = tab;
         }
 
+        /**
+         *
+         * @param key
+         * @param hash
+         * @param value
+         * @param onlyIfAbsent
+         * @return
+         */
+        // Segment中的put方法
         final V put(K key, int hash, V value, boolean onlyIfAbsent) {
+            //这里通过tryLock尝试加锁，如果加锁成功，返回null，否则执行 scanAndLockForPut方法
+            //这里说明一下，tryLock 和 lock 是 ReentrantLock 中的方法，
+            //区别是 tryLock 不会阻塞，抢锁成功就返回true，失败就立马返回false，
+            //而 lock 方法是，抢锁成功则返回，失败则会进入同步队列，阻塞等待获取锁。
             HashEntry<K,V> node = tryLock() ? null :
                 scanAndLockForPut(key, hash, value);
             V oldValue;
@@ -437,8 +481,10 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                 int index = (tab.length - 1) & hash;
                 HashEntry<K,V> first = entryAt(tab, index);
                 for (HashEntry<K,V> e = first;;) {
+                    // 如果节点不为空
                     if (e != null) {
                         K k;
+                        //并且第一个节点，就是要插入的节点，则替换value值，否则继续向后查找
                         if ((k = e.key) == key ||
                             (e.hash == hash && key.equals(k))) {
                             oldValue = e.value;
@@ -450,6 +496,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                         }
                         e = e.next;
                     }
+                    // 说明当前index位置不存在任何节点，此时first为null，
+                    // 或者当前index存在链表，并且已经遍历完了还没找到相等的key，此时first就是链表第一个元素
                     else {
                         if (node != null)
                             node.setNext(first);
@@ -800,18 +848,24 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     @SuppressWarnings("unchecked")
     public ConcurrentHashMap(int initialCapacity,
                              float loadFactor, int concurrencyLevel) {
+        // 并发级别必须大于0,初始化容量大于等于0，负载因子大于0
         if (!(loadFactor > 0) || initialCapacity < 0 || concurrencyLevel <= 0)
             throw new IllegalArgumentException();
         if (concurrencyLevel > MAX_SEGMENTS)
             concurrencyLevel = MAX_SEGMENTS;
         // Find power-of-two sizes best matching arguments
         int sshift = 0;
+        //用于设定最终Segment数组的长度，必须是2的n次幂
+        // ssize >= concurrentLevel最小2的n次幂
         int ssize = 1;
+        // 1 2 4 8 16,默认Segments长度是16
+        // sshift=4
         while (ssize < concurrencyLevel) {
             ++sshift;
             ssize <<= 1;
         }
         this.segmentShift = 32 - sshift;
+        // Segment掩码
         this.segmentMask = ssize - 1;
         if (initialCapacity > MAXIMUM_CAPACITY)
             initialCapacity = MAXIMUM_CAPACITY;
@@ -822,10 +876,15 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         while (cap < c)
             cap <<= 1;
         // create segments and segments[0]
+        //这里用 loadFactor做为加载因子，cap乘以加载因子作为扩容阈值，创建长度为cap的HashEntry数组，
+        // Segment构造函数：loadFactor, capacity,
         Segment<K,V> s0 =
             new Segment<K,V>(loadFactor, (int)(cap * loadFactor),
                              (HashEntry<K,V>[])new HashEntry[cap]);
         Segment<K,V>[] ss = (Segment<K,V>[])new Segment[ssize];
+        //三个参数，创建一个Segment对象，保存到S0对象中。后边在 ensureSegment 方法会用到S0作为原型对象去创建对应的Segment。
+        //把S0存到Segment数组中去。在这里，我们就可以发现，此时只是创建了一个Segment数组，
+        //但是并没有把数组中的每个Segment对象创建出来，仅仅创建了一个Segment用来作为原型对象。
         UNSAFE.putOrderedObject(ss, SBASE, s0); // ordered write of segments[0]
         this.segments = ss;
     }
@@ -1118,15 +1177,28 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * @throws NullPointerException if the specified key or value is null
      */
     @SuppressWarnings("unchecked")
+    /**
+     * put方法总体流程：
+     * 1. 通过哈希算法计算出当前 key 的 hash 值
+     * 2. 通过这个 hash 值找到它所对应的 Segment 数组的下标
+     * 3. 再通过 hash 值计算出它在对应 Segment 的 HashEntry数组 的下标
+     * 4. 找到合适的位置插入元素
+     */
     public V put(K key, V value) {
         Segment<K,V> s;
+        // key value均不能为空
         if (value == null)
             throw new NullPointerException();
         int hash = hash(key);
+        // 上边我们计算出的 segmentShift默认值为28，因此hash值右移28位，说明此时用的是hash的高4位，
+        // 然后把它和掩码15进行与运算，得到的值一定是一个 0000 ~ 1111 范围内的值，即 0~15 。
         int j = (hash >>> segmentShift) & segmentMask;
+        //这里是用Unsafe类的原子操作找到Segment数组中j下标的 Segment 对象
         if ((s = (Segment<K,V>)UNSAFE.getObject          // nonvolatile; recheck
              (segments, (j << SSHIFT) + SBASE)) == null) //  in ensureSegment
+            // 初始化j下标的Segment
             s = ensureSegment(j);
+        // 在此segment添加元素
         return s.put(key, hash, value, false);
     }
 
