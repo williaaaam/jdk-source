@@ -461,6 +461,11 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
 
         /**
          *
+         * 下边的hash值是通过哈希运算后的hash值，不是hashCode
+         * 计算 Segment 下标
+         *  (hash >>> segmentShift) & segmentMask
+         *  计算 HashEntry 数组下标
+         *  (tab.length - 1) & hash
          * @param key
          * @param hash
          * @param value
@@ -500,13 +505,17 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                     // 或者当前index存在链表，并且已经遍历完了还没找到相等的key，此时first就是链表第一个元素
                     else {
                         if (node != null)
+                            // 如果node不为空，则直接头插
                             node.setNext(first);
                         else
+                            // 否则，创建一个新的node,并头插
                             node = new HashEntry<K,V>(hash, key, value, first);
                         int c = count + 1;
+                        // 如果当前Segment中的元素大于阈值，并且tab长度没有超过容量最大值，则扩容
                         if (c > threshold && tab.length < MAXIMUM_CAPACITY)
                             rehash(node);
                         else
+                            // //否则，就把当前node设置为index下标位置新的头结点
                             setEntryAt(tab, index, node);
                         ++modCount;
                         count = c;
@@ -515,8 +524,10 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                     }
                 }
             } finally {
+                // ReentrantLock必须手动解锁
                 unlock();
             }
+            // 返回旧值
             return oldValue;
         }
 
@@ -596,6 +607,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
          *
          * @return a new node if key not found, else null
          */
+        // put方法第一步抢锁失败后，就会执行此方法
         private HashEntry<K,V> scanAndLockForPut(K key, int hash, V value) {
             HashEntry<K,V> first = entryForHash(this, hash);
             HashEntry<K,V> e = first;
@@ -782,19 +794,35 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
      * @return the segment
      */
     @SuppressWarnings("unchecked")
+    // k = (hash >>> segmentShift) & segmentMask
+    /**
+     * 可以发现，我标注了上边 (1)(2)(3) 个地方，每次都判断最新的Segment是否为空。可能有的小伙伴就会迷惑，为什么做这么多次判断，我直接去自旋不就好了，反正最后都要自旋的。
+     *
+     * 我的理解是，在多线程环境下，因为不确定是什么时候会有其它线程 CAS 成功，有可能发生在以上的任意时刻。所以，只要发现一旦内存中的对象已经存在了，
+     * 则说明已经有其它线程把Segment对象创建好，并CAS成功同步到主内存了。此时，就可以直接返回，而不需要往下执行了。这样做，是为了代码执行效率考虑。
+     */
     private Segment<K,V> ensureSegment(int k) {
         final Segment<K,V>[] ss = this.segments;
         long u = (k << SSHIFT) + SBASE; // raw offset
         Segment<K,V> seg;
+        //从内存中取到最新的下标位置的 Segment 对象，判断是否为空，(1)
         if ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u)) == null) {
+            //之前构造函数说了，s0是作为一个原型对象，用于创建新的 Segment 对象
             Segment<K,V> proto = ss[0]; // use segment 0 as prototype
             int cap = proto.table.length;
             float lf = proto.loadFactor;
+            // 扩容阈值
             int threshold = (int)(cap * lf);
+            //把 Segment 对应的 HashEntry 数组先创建出来
             HashEntry<K,V>[] tab = (HashEntry<K,V>[])new HashEntry[cap];
+            //再次检查 K 下标位置的 Segment 是否为空， (2)
             if ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u))
                 == null) { // recheck
+                //此处把 Segment 对象创建出来，并赋值给 s，
                 Segment<K,V> s = new Segment<K,V>(lf, threshold, tab);
+                //自旋检查 K 下标位置的 Segment 是否为空， (3)
+                //若不为空，则说明有其它线程抢先创建成功，并且已经成功同步到主内存中了，
+                //则把它取出来，并返回
                 while ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u))
                        == null) {
                     if (UNSAFE.compareAndSwapObject(ss, u, null, seg = s))
