@@ -339,6 +339,8 @@ public class HashMap<K,V>
      * otherwise encounter collisions for hashCodes that do not differ
      * in lower bits. Note: Null keys always map to hash 0, thus index 0.
      */
+    // jdk7.0 hash 4次异或，4次位操作
+    // jdk8.0 hash函数 一次扰动，一次位操作
     final int hash(Object k) {
         int h = 0;
         if (useAltHashing) {
@@ -465,13 +467,16 @@ public class HashMap<K,V>
      *         (A <tt>null</tt> return can also indicate that the map
      *         previously associated <tt>null</tt> with <tt>key</tt>.)
      */
+    // 头插法,比较key是否相等：hash值相等 && (k相等)
     public V put(K key, V value) {
         if (key == null)
             return putForNullKey(value);
         int hash = hash(key);
         int i = indexFor(hash, table.length);
+        // 遍历链表，判断是否存在相同的key
         for (Entry<K,V> e = table[i]; e != null; e = e.next) {
             Object k;
+            // 如果key已经存在，则替换value,并替换旧值
             if (e.hash == hash && ((k = e.key) == key || key.equals(k))) {
                 V oldValue = e.value;
                 e.value = value;
@@ -481,6 +486,7 @@ public class HashMap<K,V>
         }
 
         modCount++;
+        // key不存在。则插入新的元素
         addEntry(hash, key, value, i);
         return null;
     }
@@ -548,6 +554,7 @@ public class HashMap<K,V>
      *        capacity is MAXIMUM_CAPACITY (in which case value
      *        is irrelevant).
      */
+    // 扩容时候会产生链表环,容量变成之前的两倍
     void resize(int newCapacity) {
         Entry[] oldTable = table;
         int oldCapacity = oldTable.length;
@@ -569,11 +576,13 @@ public class HashMap<K,V>
     /**
      * Transfers all entries from current table to newTable.
      */
+    // 遍历原来table中每个位置的链表，rehash后，找到在新表中的位置，并插入
+    // 造成死循环原因分析：https://juejin.im/post/6844903554264596487
     void transfer(Entry[] newTable, boolean rehash) {
         int newCapacity = newTable.length;
         for (Entry<K,V> e : table) {
             while(null != e) {
-                Entry<K,V> next = e.next;
+                Entry<K,V> next = e.next; // 线程2阻塞在这里
                 if (rehash) {
                     e.hash = null == e.key ? 0 : hash(e.key);
                 }
@@ -847,7 +856,9 @@ public class HashMap<K,V>
      * Subclass overrides this to alter the behavior of put method.
      */
     void addEntry(int hash, K key, V value, int bucketIndex) {
+        // 判断是否需要扩容，当前链表头结点不为空
         if ((size >= threshold) && (null != table[bucketIndex])) {
+            // 容量为之前表长的两倍
             resize(2 * table.length);
             hash = (null != key) ? hash(key) : 0;
             bucketIndex = indexFor(hash, table.length);

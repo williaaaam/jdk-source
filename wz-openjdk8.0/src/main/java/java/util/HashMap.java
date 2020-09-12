@@ -135,6 +135,13 @@ import sun.misc.SharedSecrets;
  * @see     Hashtable
  * @since   1.2
  */
+
+/**
+ * Jdk8.0 HashMap性能平均来说比Jdk7.0提升了8%-10%
+ * 链表树化阈值为8的原因：随着链表长度的增加，长度为8的时候，同一个key经过hash落在同一个桶的概率为一亿分之一，趋近于0
+ * @param <K>
+ * @param <V>
+ */
 public class HashMap<K,V> extends AbstractMap<K,V>
     implements Map<K,V>, Cloneable, Serializable {
 
@@ -628,8 +635,10 @@ public class HashMap<K,V> extends AbstractMap<K,V>
         if ((tab = table) == null || (n = tab.length) == 0)
             n = (tab = resize()).length;
         if ((p = tab[i = (n - 1) & hash]) == null)
+            // 多线程，此处节点可能会被覆盖，造成线程不安全
             tab[i] = newNode(hash, key, value, null);
         else {
+            // 比较Key是否相等:hash相等 && key相等
             Node<K,V> e; K k;
             if (p.hash == hash &&
                 ((k = p.key) == key || (key != null && key.equals(k))))
@@ -637,9 +646,12 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             else if (p instanceof TreeNode)
                 e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);
             else {
+                // 遍历链表，统计链表节点个数，节点个数为8的时候，转为红黑树
                 for (int binCount = 0; ; ++binCount) {
                     if ((e = p.next) == null) {
+                        // 新节点尾插法
                         p.next = newNode(hash, key, value, null);
+                        // 树化
                         if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
                             treeifyBin(tab, hash);
                         break;
