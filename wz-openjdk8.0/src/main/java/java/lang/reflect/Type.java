@@ -42,6 +42,10 @@ public interface Type {
      * @return a string describing this type
      * @since 1.8
      */
+    /**
+     * 返回全限定名，包括类型变量
+     * @return
+     */
     default String getTypeName() {
         return toString();
     }

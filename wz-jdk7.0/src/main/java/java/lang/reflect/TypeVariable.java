@@ -68,6 +68,10 @@ public interface TypeVariable<D extends GenericDeclaration> extends Type {
      * @return an array of {@code Type}s representing the upper
      *     bound(s) of this type variable
     */
+    /**
+     * 类型变量上界
+     * @return
+     */
     Type[] getBounds();
 
     /**
@@ -78,12 +82,21 @@ public interface TypeVariable<D extends GenericDeclaration> extends Type {
      *
      * @since 1.5
      */
+    /**
+     * 类型变量声明的载体
+     * @return
+     */
     D getGenericDeclaration();
 
     /**
      * Returns the name of this type variable, as it occurs in the source code.
      *
      * @return the name of this type variable, as it appears in the source code
+     */
+    /**
+     * 类型变量在源码中的名称
+     * 例如 V v 返回 V
+     * @return
      */
     String getName();
 }
