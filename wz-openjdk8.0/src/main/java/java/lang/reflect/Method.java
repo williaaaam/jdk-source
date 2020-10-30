@@ -139,6 +139,10 @@ public final class Method extends Executable {
      * ReflectAccess) which returns a copy of this Method. The copy's
      * "root" field points to this Method.
      */
+    /**
+     * 被拷贝的方法指向拷贝方法res
+     * @return
+     */
     Method copy() {
         // This routine enables sharing of MethodAccessor objects
         // among Method objects which refer to the same underlying
@@ -155,6 +159,7 @@ public final class Method extends Executable {
                                 annotations, parameterAnnotations, annotationDefault);
         res.root = this;
         // Might as well eagerly propagate this if already present
+        // 方法拷贝共用同一个Method对象的MethodAccessor
         res.methodAccessor = methodAccessor;
         return res;
     }
@@ -485,16 +490,20 @@ public final class Method extends Executable {
         throws IllegalAccessException, IllegalArgumentException,
            InvocationTargetException
     {
+        // setAccessible(true)，即给override = true，跳过权限检查
         if (!override) {
             if (!Reflection.quickCheckMemberAccess(clazz, modifiers)) {
                 Class<?> caller = Reflection.getCallerClass();
+                // 权限检查
                 checkAccess(caller, clazz, obj, modifiers);
             }
         }
+        // 获取copy方法时的methodAccessor
         MethodAccessor ma = methodAccessor;             // read volatile
         if (ma == null) {
             ma = acquireMethodAccessor();
         }
+        // 方法调用委托给methodAccessor
         return ma.invoke(obj, args);
     }
 

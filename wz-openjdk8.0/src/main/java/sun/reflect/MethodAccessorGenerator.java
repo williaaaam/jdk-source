@@ -549,7 +549,9 @@ class MethodAccessorGenerator extends AccessorGenerator {
                 } else {
                     cb.opc_astore_3();
                 }
-
+                /**
+                 * 基本类型的自动拆装箱
+                 */
                 // repeat for all possible widening conversions:
                 //   aload_3 | aload_2
                 //   instanceof <primitive boxing type>
