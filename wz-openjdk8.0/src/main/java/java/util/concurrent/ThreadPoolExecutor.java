@@ -1089,6 +1089,13 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @return task, or null if the worker must exit, in which case
      * workerCount is decremented
      */
+    /**
+     * 所以，这个地方的实际流程应该是： 创建新的工作线程 worker，然后工作线程数进行加一操作。
+     * 运行创建的工作线程 worker，开始获取任务 task。
+     * 工作线程数量大于最大线程数，对工作线程数进行减一操作。 返回 null，即没有获取到 task。 清理该任务，流程结束。
+     *
+     * @return
+     */
     private Runnable getTask() {
         boolean timedOut = false; // Did the last poll() time out?
 
@@ -1107,6 +1114,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             // Are workers subject to culling?
             boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;
 
+            // 如果工作线程数大于最大线程数，则对工作线程数量进行减一操作,然后返回null
             if ((wc > maximumPoolSize || (timed && timedOut))
                     && (wc > 1 || workQueue.isEmpty())) {
                 if (compareAndDecrementWorkerCount(c))
@@ -1608,6 +1616,8 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         int delta = corePoolSize - this.corePoolSize;
         this.corePoolSize = corePoolSize;
         if (workerCountOf(ctl.get()) > corePoolSize)
+            // 中断当前处于idle的worker线程
+            // 多余的worker在下次idle时也会被回收
             interruptIdleWorkers();
         else if (delta > 0) {
             // We don't really know how many new threads are "needed".
@@ -1615,6 +1625,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
             // core size) to handle the current number of tasks in
             // queue, but stop if queue becomes empty while doing so.
             int k = Math.min(delta, workQueue.size());
+            // 当前值大于原始coreSize,并且队列中有待执行任务，则会创建新的worker线程执行队列任务
             while (k-- > 0 && addWorker(null, true)) {
                 if (workQueue.isEmpty())
                     break;
@@ -1664,6 +1675,10 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *
      * @return the number of threads started
      */
+    /**
+     * 线程池预热，启动全部核心线程
+     * @return
+     */
     public int prestartAllCoreThreads() {
         int n = 0;
         while (addWorker(null, true))
@@ -1702,6 +1717,11 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * @throws IllegalArgumentException if value is {@code true}
      *                                  and the current keep-alive time is not greater than zero
      * @since 1.6
+     */
+    /**
+     * 核心线程在空闲了keepAliveTime时也会被回收的
+     *
+     * @param value
      */
     public void allowCoreThreadTimeOut(boolean value) {
         if (value && keepAliveTime <= 0)
