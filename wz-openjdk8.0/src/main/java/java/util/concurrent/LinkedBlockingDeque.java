@@ -74,6 +74,11 @@ import java.util.function.Consumer;
  * @author  Doug Lea
  * @param <E> the type of elements held in this collection
  */
+
+/**
+ * 链接结构的有界队列
+ * @param <E>
+ */
 public class LinkedBlockingDeque<E>
     extends AbstractQueue<E>
     implements BlockingDeque<E>, java.io.Serializable {
