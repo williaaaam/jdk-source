@@ -137,6 +137,7 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
     private final int capacity;
 
     /** Current number of elements */
+    // 元素个数，因为有2个锁，存在竞态条件，使用AtomicInteger
     private final AtomicInteger count = new AtomicInteger();
 
     /**
@@ -346,15 +347,15 @@ public class LinkedBlockingQueue<E> extends AbstractQueue<E>
              * signalled if it ever changes from capacity. Similarly
              * for all other uses of count in other wait guards.
              */
-            while (count.get() == capacity) {
+            while (count.get() == capacity) { // 队列已满
                 notFull.await();
             }
             enqueue(node);
             c = count.getAndIncrement();
             if (c + 1 < capacity)
-                notFull.signal();
+                notFull.signal();// 在放锁的条件对象notFull上唤醒正在等待的线程，表示可以再次往队列里面加数据了，队列还没满
         } finally {
-            putLock.unlock();
+            putLock.unlock(); // 释放放锁，让其他线程可以调用offer方法
         }
         if (c == 0)
             signalNotEmpty();
