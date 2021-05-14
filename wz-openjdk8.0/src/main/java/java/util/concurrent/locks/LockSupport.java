@@ -126,6 +126,7 @@ public class LockSupport {
     }
 
     /**
+     * 从源码可知unpark本身就是发放许可，并通知等待的线程，已经可以结束等待了
      * Makes available the permit for the given thread, if it
      * was not already available.  If the thread was blocked on
      * {@code park} then it will unblock.  Otherwise, its next call
@@ -142,6 +143,11 @@ public class LockSupport {
     }
 
     /**
+     * 无论是什么情况返回，park方法本身都不会告知调用方返回的原因，所以调用的时候一般都会去判断返回的场景，根据场景做不同的处理
+     * 线程的等待与挂起、唤醒等等就是使用的POSIX的线程API
+     * park的许可通过原子变量_count实现，当被消耗时，_count为0，只要拥有许可，就会立即返回
+     *
+
      * Disables the current thread for thread scheduling purposes unless the
      * permit is available.
      *
@@ -171,8 +177,11 @@ public class LockSupport {
      */
     public static void park(Object blocker) {
         Thread t = Thread.currentThread();
+        // 记录当前线程阻塞的原因,底层就是unsafe.putObject,就是把对象存储起来
         setBlocker(t, blocker);
+        // 执行park,线程将会阻塞在这里
         UNSAFE.park(false, 0L);
+        // 线程恢复后，去掉阻塞原因
         setBlocker(t, null);
     }
 
@@ -335,6 +344,11 @@ public class LockSupport {
      */
     public static void parkNanos(long nanos) {
         if (nanos > 0)
+            // 线程的恢复条件如下：
+            // 1. 线程调用了unpark
+            // 2. 其他线程中断了当前线程
+            // 3. 发生了不可预料的事情
+            // 4. 指定的deadline已经到了
             UNSAFE.park(false, nanos);
     }
 

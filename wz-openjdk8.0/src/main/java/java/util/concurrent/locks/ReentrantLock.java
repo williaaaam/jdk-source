@@ -145,15 +145,25 @@ public class ReentrantLock implements Lock, java.io.Serializable {
             return false;
         }
 
+        /**
+         * 释放锁的过程不区分是否为公平锁
+         * 方法返回当前锁是不是没有被线程持有
+         * @param releases
+         * @return
+         */
         protected final boolean tryRelease(int releases) {
+            // 减少可重入次数
             int c = getState() - releases;
+            // 当前线程不是持有锁的线程，抛出异常
             if (Thread.currentThread() != getExclusiveOwnerThread())
                 throw new IllegalMonitorStateException();
             boolean free = false;
+           //  如果持有线程全部释放，将当前独占锁所有线程设置为null，并更新state
             if (c == 0) {
                 free = true;
                 setExclusiveOwnerThread(null);
             }
+            // 更新状态
             setState(c);
             return free;
         }
@@ -193,6 +203,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
+     * 非公平锁
      * Sync object for non-fair locks
      */
     static final class NonfairSync extends Sync {
@@ -204,8 +215,11 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          */
         final void lock() {
             if (compareAndSetState(0, 1))
+                // cas同步状态更新成功，也就是获得锁成功，设置自己为独占线程
                 setExclusiveOwnerThread(Thread.currentThread());
             else
+                // 锁获取失败，进入acquire方法进行后续处理
+                // 当执行Acquire(1)时，会通过tryAcquire获取锁。在这种情况下，如果获取锁失败，就会调用addWaiter加入到等待队列中去。
                 acquire(1);
         }
 
@@ -225,6 +239,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         }
 
         /**
+         * tryAcquire()是获取锁逻辑，获取失败后，会执行框架AQS的后续逻辑，和ReentrantLock自定义同步器无关
          * Fair version of tryAcquire.  Don't grant access unless
          * recursive call or no waiters or is first.
          */
@@ -289,6 +304,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
+     * 如果当前线程未被中断，则获得锁
      * Acquires the lock unless the current thread is
      * {@linkplain Thread#interrupt interrupted}.
      *
