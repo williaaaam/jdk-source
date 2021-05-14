@@ -678,6 +678,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     }
 
     /**
+     * 2倍扩容
      * Initializes or doubles table size.  If null, allocates in
      * accord with initial capacity target held in field threshold.
      * Otherwise, because we are using power-of-two expansion, the

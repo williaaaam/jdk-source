@@ -24,6 +24,7 @@
  */
 
 package java.lang;
+
 import java.lang.ref.*;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -68,8 +69,8 @@ import java.util.function.Supplier;
  * thread-local instances are subject to garbage collection (unless other
  * references to these copies exist).
  *
- * @author  Josh Bloch and Doug Lea
- * @since   1.2
+ * @author Josh Bloch and Doug Lea
+ * @since 1.2
  */
 public class ThreadLocal<T> {
     /**
@@ -89,12 +90,19 @@ public class ThreadLocal<T> {
      * zero.
      */
     private static AtomicInteger nextHashCode =
-        new AtomicInteger();
+            new AtomicInteger();
 
     /**
      * The difference between successively generated hash codes - turns
      * implicit sequential thread-local IDs into near-optimally spread
      * multiplicative hash values for power-of-two-sized tables.
+     */
+
+    /**
+     * long l1 = (long) ((1L << 31) * (Math.sqrt(5) - 1));  即是 (根号5-1)*2的31次方=(根号5-1)/2 *2的32次方=黄金分割数*2的32次方
+     * 完美散列数,0x61c88647对应十进制=1640531527
+     * (根号5-1)*2的31次方，转换成long类型就是2654435769，转换成int类型就是-1640531527
+     * 0x61c88647-1二进制：10011110001101110111100110111000
      */
     private static final int HASH_INCREMENT = 0x61c88647;
 
@@ -131,7 +139,7 @@ public class ThreadLocal<T> {
      * Creates a thread local variable. The initial value of the variable is
      * determined by invoking the {@code get} method on the {@code Supplier}.
      *
-     * @param <S> the type of the thread local's value
+     * @param <S>      the type of the thread local's value
      * @param supplier the supplier to be used to determine the initial value
      * @return a new thread local variable
      * @throws NullPointerException if the specified supplier is null
@@ -143,6 +151,7 @@ public class ThreadLocal<T> {
 
     /**
      * Creates a thread local variable.
+     *
      * @see #withInitial(java.util.function.Supplier)
      */
     public ThreadLocal() {
@@ -163,7 +172,7 @@ public class ThreadLocal<T> {
             ThreadLocalMap.Entry e = map.getEntry(this);
             if (e != null) {
                 @SuppressWarnings("unchecked")
-                T result = (T)e.value;
+                T result = (T) e.value;
                 return result;
             }
         }
@@ -194,12 +203,14 @@ public class ThreadLocal<T> {
      * method to set the values of thread-locals.
      *
      * @param value the value to be stored in the current thread's copy of
-     *        this thread-local.
+     *              this thread-local.
      */
     public void set(T value) {
         Thread t = Thread.currentThread();
+        // 获取ThreadLocalMap
         ThreadLocalMap map = getMap(t);
         if (map != null)
+            // this代指ThreadLocal对象
             map.set(this, value);
         else
             createMap(t, value);
@@ -216,17 +227,17 @@ public class ThreadLocal<T> {
      *
      * @since 1.5
      */
-     public void remove() {
-         ThreadLocalMap m = getMap(Thread.currentThread());
-         if (m != null)
-             m.remove(this);
-     }
+    public void remove() {
+        ThreadLocalMap m = getMap(Thread.currentThread());
+        if (m != null)
+            m.remove(this);
+    }
 
     /**
      * Get the map associated with a ThreadLocal. Overridden in
      * InheritableThreadLocal.
      *
-     * @param  t the current thread
+     * @param t the current thread
      * @return the map
      */
     ThreadLocalMap getMap(Thread t) {
@@ -237,7 +248,7 @@ public class ThreadLocal<T> {
      * Create the map associated with a ThreadLocal. Overridden in
      * InheritableThreadLocal.
      *
-     * @param t the current thread
+     * @param t          the current thread
      * @param firstValue value for the initial entry of the map
      */
     void createMap(Thread t, T firstValue) {
@@ -248,7 +259,7 @@ public class ThreadLocal<T> {
      * Factory method to create map of inherited thread locals.
      * Designed to be called only from Thread constructor.
      *
-     * @param  parentMap the map associated with parent thread
+     * @param parentMap the map associated with parent thread
      * @return a map containing the parent's inheritable bindings
      */
     static ThreadLocalMap createInheritedMap(ThreadLocalMap parentMap) {
@@ -286,6 +297,7 @@ public class ThreadLocal<T> {
     }
 
     /**
+     * ThreadLocalMap使用“开放寻址法”中最简单的“线性探测法”解决散列冲突问题
      * ThreadLocalMap is a customized hash map suitable only for
      * maintaining thread local values. No operations are exported
      * outside of the ThreadLocal class. The class is package private to
@@ -298,6 +310,7 @@ public class ThreadLocal<T> {
     static class ThreadLocalMap {
 
         /**
+         * ThreadLocalMap中的Entry[]数组初始化容量为16，后续每次扩容都是2倍扩容
          * The entries in this hash map extend WeakReference, using
          * its main ref field as the key (which is always a
          * ThreadLocal object).  Note that null keys (i.e. entry.get()
@@ -306,7 +319,9 @@ public class ThreadLocal<T> {
          * as "stale entries" in the code that follows.
          */
         static class Entry extends WeakReference<ThreadLocal<?>> {
-            /** The value associated with this ThreadLocal. */
+            /**
+             * The value associated with this ThreadLocal.
+             */
             Object value;
 
             Entry(ThreadLocal<?> k, Object v) {
@@ -337,6 +352,7 @@ public class ThreadLocal<T> {
         private int threshold; // Default to 0
 
         /**
+         * threshold=len*0.6666666666...
          * Set the resize threshold to maintain at worst a 2/3 load factor.
          */
         private void setThreshold(int len) {
@@ -344,6 +360,7 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * ((i + 1 < len) ? i + 1 : 0)
          * Increment i modulo len.
          */
         private static int nextIndex(int i, int len) {
@@ -351,6 +368,7 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * ((i - 1 >= 0) ? i - 1 : len - 1);
          * Decrement i modulo len.
          */
         private static int prevIndex(int i, int len) {
@@ -407,7 +425,7 @@ public class ThreadLocal<T> {
          * designed to maximize performance for direct hits, in part
          * by making this method readily inlinable.
          *
-         * @param  key the thread local object
+         * @param key the thread local object
          * @return the entry associated with key, or null if no such
          */
         private Entry getEntry(ThreadLocal<?> key) {
@@ -423,9 +441,9 @@ public class ThreadLocal<T> {
          * Version of getEntry method for use when key is not found in
          * its direct hash slot.
          *
-         * @param  key the thread local object
-         * @param  i the table index for key's hash code
-         * @param  e the entry at table[i]
+         * @param key the thread local object
+         * @param i   the table index for key's hash code
+         * @param e   the entry at table[i]
          * @return the entry associated with key, or null if no such
          */
         private Entry getEntryAfterMiss(ThreadLocal<?> key, int i, Entry e) {
@@ -446,9 +464,20 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 总结set步骤：
+         * <p>
+         * 1）根据哈希值和数组长度求元素放置的位置，即数组下标
+         * <p>
+         * 2）从第一步得出的下标开始往后遍历，如果key相等，覆盖value，如果key为null,用新key、value覆盖，同时清理历史key=null的陈旧数据
+         * <p>
+         * 3）如果超过阀值，就需要再哈希：
+         * <p>
+         * 清理一遍陈旧数据
+         * >= 3/4阀值,就执行扩容，把table扩容2倍==》注意这里3/4阀值就执行扩容，避免迟滞
+         * 把老数据重新哈希散列进新table
          * Set the value associated with key.
          *
-         * @param key the thread local object
+         * @param key   the thread local object
          * @param value the value to be set
          */
         private void set(ThreadLocal<?> key, Object value) {
@@ -460,18 +489,20 @@ public class ThreadLocal<T> {
 
             Entry[] tab = table;
             int len = tab.length;
-            int i = key.threadLocalHashCode & (len-1);
+            int i = key.threadLocalHashCode & (len - 1);
 
             for (Entry e = tab[i];
                  e != null;
                  e = tab[i = nextIndex(i, len)]) {
                 ThreadLocal<?> k = e.get();
 
+                // 如果key值一样，算是更新操作，直接替换
                 if (k == key) {
                     e.value = value;
                     return;
                 }
 
+                // key为空，用新key,value覆盖，同时清理历史key=null旧数据
                 if (k == null) {
                     replaceStaleEntry(key, value, i);
                     return;
@@ -479,8 +510,11 @@ public class ThreadLocal<T> {
             }
 
             tab[i] = new Entry(key, value);
+            // table 元素数量+1
             int sz = ++size;
+            // 如果没清理掉元素并且存放元素个数超过数组阈值，进行扩容
             if (!cleanSomeSlots(i, sz) && sz >= threshold)
+                // 清理过期元素；如果Table数组当前元素数大于阈值的0.75，则double size
                 rehash();
         }
 
@@ -490,11 +524,13 @@ public class ThreadLocal<T> {
         private void remove(ThreadLocal<?> key) {
             Entry[] tab = table;
             int len = tab.length;
-            int i = key.threadLocalHashCode & (len-1);
+            // 找到在Entry数组中的位置
+            int i = key.threadLocalHashCode & (len - 1);
             for (Entry e = tab[i];
                  e != null;
                  e = tab[i = nextIndex(i, len)]) {
                 if (e.get() == key) {
+                    // 清理引用对象，将引用对象置为null
                     e.clear();
                     expungeStaleEntry(i);
                     return;
@@ -507,15 +543,15 @@ public class ThreadLocal<T> {
          * with an entry for the specified key.  The value passed in
          * the value parameter is stored in the entry, whether or not
          * an entry already exists for the specified key.
-         *
+         * <p>
          * As a side effect, this method expunges all stale entries in the
          * "run" containing the stale entry.  (A run is a sequence of entries
          * between two null slots.)
          *
-         * @param  key the key
-         * @param  value the value to be associated with key
-         * @param  staleSlot index of the first stale entry encountered while
-         *         searching for key.
+         * @param key       the key
+         * @param value     the value to be associated with key
+         * @param staleSlot index of the first stale entry encountered while
+         *                  searching for key.
          */
         private void replaceStaleEntry(ThreadLocal<?> key, Object value,
                                        int staleSlot) {
@@ -527,7 +563,9 @@ public class ThreadLocal<T> {
             // We clean out whole runs at a time to avoid continual
             // incremental rehashing due to garbage collector freeing
             // up refs in bunches (i.e., whenever the collector runs).
+            // 待清理槽下标
             int slotToExpunge = staleSlot;
+            // 从staleSlot开始向前查，数组元素不为null,并且key为null
             for (int i = prevIndex(staleSlot, len);
                  (e = tab[i]) != null;
                  i = prevIndex(i, len))
@@ -576,6 +614,7 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 清理空槽
          * Expunge a stale entry by rehashing any possibly colliding entries
          * lying between staleSlot and the next null slot.  This also expunges
          * any other stale entries encountered before the trailing null.  See
@@ -593,6 +632,7 @@ public class ThreadLocal<T> {
             // expunge entry at staleSlot
             tab[staleSlot].value = null;
             tab[staleSlot] = null;
+            // Table元素数-1
             size--;
 
             // Rehash until we encounter null
@@ -603,16 +643,21 @@ public class ThreadLocal<T> {
                  i = nextIndex(i, len)) {
                 ThreadLocal<?> k = e.get();
                 if (k == null) {
+                    // 清理value
                     e.value = null;
                     tab[i] = null;
                     size--;
                 } else {
-                    int h = k.threadLocalHashCode & (len - 1);
+                    // 因为元素个数减少了，就把后面的元素重新hash
+                    int h = k.threadLdocalHashCode & (len - 1);
+                    // hash地址不相等，就代表这个元素之前发生过hash冲突(本来应该放在这没放在这)，
+                    // 现在因为有元素被移除了，很有可能原来冲突的位置空出来了，重试一次
                     if (h != i) {
                         tab[i] = null;
 
                         // Unlike Knuth 6.4 Algorithm R, we must scan until
                         // null because multiple entries could have been stale.
+                        // 继续采用开放寻址法存放元素
                         while (tab[h] != null)
                             h = nextIndex(h, len);
                         tab[h] = e;
@@ -632,18 +677,16 @@ public class ThreadLocal<T> {
          * garbage but would cause some insertions to take O(n) time.
          *
          * @param i a position known NOT to hold a stale entry. The
-         * scan starts at the element after i.
-         *
+         *          scan starts at the element after i.
          * @param n scan control: {@code log2(n)} cells are scanned,
-         * unless a stale entry is found, in which case
-         * {@code log2(table.length)-1} additional cells are scanned.
-         * When called from insertions, this parameter is the number
-         * of elements, but when from replaceStaleEntry, it is the
-         * table length. (Note: all this could be changed to be either
-         * more or less aggressive by weighting n instead of just
-         * using straight log n. But this version is simple, fast, and
-         * seems to work well.)
-         *
+         *          unless a stale entry is found, in which case
+         *          {@code log2(table.length)-1} additional cells are scanned.
+         *          When called from insertions, this parameter is the number
+         *          of elements, but when from replaceStaleEntry, it is the
+         *          table length. (Note: all this could be changed to be either
+         *          more or less aggressive by weighting n instead of just
+         *          using straight log n. But this version is simple, fast, and
+         *          seems to work well.)
          * @return true if any stale entries have been removed.
          */
         private boolean cleanSomeSlots(int i, int n) {
@@ -658,11 +701,12 @@ public class ThreadLocal<T> {
                     removed = true;
                     i = expungeStaleEntry(i);
                 }
-            } while ( (n >>>= 1) != 0);
+            } while ((n >>>= 1) != 0);
             return removed;
         }
 
         /**
+         * 删除过时条目；如果数组当前元素量大于阈值的0.75，则双倍扩容size
          * Re-pack and/or re-size the table. First scan the entire
          * table removing stale entries. If this doesn't sufficiently
          * shrink the size of the table, double the table size.
@@ -676,6 +720,7 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 两倍扩容,并把老数据重新哈希散列进新table
          * Double the capacity of the table.
          */
         private void resize() {
@@ -700,7 +745,7 @@ public class ThreadLocal<T> {
                     }
                 }
             }
-
+            // 新的阈值=newLen*2/3
             setThreshold(newLen);
             size = count;
             table = newTab;

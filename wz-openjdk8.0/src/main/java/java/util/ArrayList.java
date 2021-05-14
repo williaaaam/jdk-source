@@ -160,6 +160,7 @@ public class ArrayList<E> extends AbstractList<E>
     }
 
     /**
+     * 默认容量为10
      * Constructs an empty list with an initial capacity of ten.
      */
     public ArrayList() {
@@ -220,6 +221,12 @@ public class ArrayList<E> extends AbstractList<E>
         }
     }
 
+    /**
+     *
+     * @param elementData
+     * @param minCapacity
+     * @return 如果没指定初始化容量，Max(DEFAULT_CAPACITY,minCapacity)，否则返回minCapacity
+     */
     private static int calculateCapacity(Object[] elementData, int minCapacity) {
         if (elementData == DEFAULTCAPACITY_EMPTY_ELEMENTDATA) {
             return Math.max(DEFAULT_CAPACITY, minCapacity);
@@ -236,6 +243,7 @@ public class ArrayList<E> extends AbstractList<E>
 
         // overflow-conscious code
         if (minCapacity - elementData.length > 0)
+            // 1.5倍扩容，数据迁移
             grow(minCapacity);
     }
 
@@ -248,6 +256,7 @@ public class ArrayList<E> extends AbstractList<E>
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
     /**
+     * 扩容，数据拷贝
      * Increases the capacity to ensure that it can hold at least the
      * number of elements specified by the minimum capacity argument.
      *
@@ -256,6 +265,7 @@ public class ArrayList<E> extends AbstractList<E>
     private void grow(int minCapacity) {
         // overflow-conscious code
         int oldCapacity = elementData.length;
+        // 之前容量的1.5倍
         int newCapacity = oldCapacity + (oldCapacity >> 1);
         if (newCapacity - minCapacity < 0)
             newCapacity = minCapacity;
