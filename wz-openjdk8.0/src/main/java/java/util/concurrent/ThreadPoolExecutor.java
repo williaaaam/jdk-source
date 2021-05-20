@@ -641,7 +641,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
          * Thread this worker is running in.  Null if factory fails.
          */
         /**
-         * Woker持有的线程
+         * Woker持有的线程;Worker将自己放到自己的成员变量thread来执行
          */
         final Thread thread;
         /**
@@ -1123,6 +1123,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
         mainLock.lock();
         try {
             completedTaskCount += w.completedTasks;
+            // 移除自身引用
             workers.remove(w);
         } finally {
             mainLock.unlock();
