@@ -148,17 +148,24 @@ public class CyclicBarrier {
      * There need not be an active generation if there has been a break
      * but no subsequent reset.
      */
+    /**
+     * 静态内部类，代
+     */
     private static class Generation {
         boolean broken = false;
     }
 
     /** The lock for guarding barrier entry */
+    // 重入锁，只有一个线程会执行成功，高并发情况下CyclicBarrier执行效率不是很高
     private final ReentrantLock lock = new ReentrantLock();
     /** Condition to wait on until tripped */
+    // 实现线程之间的通信，阻塞和唤醒线程用的
     private final Condition trip = lock.newCondition();
     /** The number of parties */
+    // 计数器，初始化的时候传入的数值就会赋值给它
     private final int parties;
     /* The command to run when tripped */
+    // 执行预定义操作
     private final Runnable barrierCommand;
     /** The current generation */
     private Generation generation = new Generation();
@@ -168,23 +175,34 @@ public class CyclicBarrier {
      * on each generation.  It is reset to parties on each new
      * generation or when broken.
      */
+    // 每次换代时，都会将parties重新赋值给count,count负责减少1
     private int count;
 
     /**
      * Updates state on barrier trip and wakes up everyone.
      * Called only while holding lock.
      */
+    /**
+     * 下一代，新建一个代对象重新赋值
+     */
     private void nextGeneration() {
         // signal completion of last generation
+        // 当计数器减少为零时证明这代已经满了，唤醒所有当前代阻塞的线程
         trip.signalAll();
         // set up next generation
+        // 换代时将parties定值赋值给count,count负责减少1
         count = parties;
+        // 上一代已经结束了，重新开启下一代
         generation = new Generation();
     }
 
     /**
      * Sets current barrier generation as broken and wakes up everyone.
      * Called only while holding lock.
+     */
+    /**
+     * 告诉这一代线程出问题了，什么时候会出现问题呢？
+     * 栅栏里的某个线程中断了，那么就唤醒这一代的所有阻塞线程，然后抛出异常
      */
     private void breakBarrier() {
         generation.broken = true;
@@ -198,16 +216,22 @@ public class CyclicBarrier {
     private int dowait(boolean timed, long nanos)
         throws InterruptedException, BrokenBarrierException,
                TimeoutException {
+        // 多线程并发情况下只有一个线程能获得锁
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            // 当前代
             final Generation g = generation;
-
+            // 判断当前代是否有线程被中断过
             if (g.broken)
+                // 可检查异常
+                // 因为当前代某个线程被中断，导致其他所有到达并阻塞屏障点的线程被唤醒，再次执行await()方式会抛出BrokenBarrierException
                 throw new BrokenBarrierException();
 
+            // 判断当前线程是否被中断，并清除中断标识
             if (Thread.interrupted()) {
                 breakBarrier();
+                // 当前抛中断异常
                 throw new InterruptedException();
             }
 
@@ -274,8 +298,15 @@ public class CyclicBarrier {
      *        tripped, or {@code null} if there is no action
      * @throws IllegalArgumentException if {@code parties} is less than 1
      */
+    /**
+     * CyclicBarrier支持可选的Runnable命令，在一组线程中的最后一个线程到达屏障点之后(在所有线程被唤醒之前)，该命令只在所有线程到达屏障点之后运行一次
+     * 该命令由最后一个进入屏障点的线程执行
+     * @param parties
+     * @param barrierAction
+     */
     public CyclicBarrier(int parties, Runnable barrierAction) {
         if (parties <= 0) throw new IllegalArgumentException();
+        //
         this.parties = parties;
         this.count = parties;
         this.barrierCommand = barrierAction;
@@ -356,6 +387,12 @@ public class CyclicBarrier {
      *         waiting, or the barrier was reset, or the barrier was
      *         broken when {@code await} was called, or the barrier
      *         action (if present) failed due to an exception
+     */
+    /**
+     * 是响应中断的，比如拦截10个线程，当其中一个线程中断了，那么拦截的所有线程都会抛出中断异常
+     * @return
+     * @throws InterruptedException
+     * @throws BrokenBarrierException
      */
     public int await() throws InterruptedException, BrokenBarrierException {
         try {
