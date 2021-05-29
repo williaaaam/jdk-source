@@ -175,6 +175,7 @@ public class Semaphore implements java.io.Serializable {
         }
 
         final int nonfairTryAcquireShared(int acquires) {
+            // 自旋获取信号量，直到信号量不够或者成功拿到了想要数量的信号量
             for (;;) {
                 int available = getState();
                 int remaining = available - acquires;
@@ -184,6 +185,11 @@ public class Semaphore implements java.io.Serializable {
             }
         }
 
+        /**
+         * 释放信号量不考虑公平与否
+         * @param releases
+         * @return
+         */
         protected final boolean tryReleaseShared(int releases) {
             for (;;) {
                 int current = getState();
@@ -195,17 +201,24 @@ public class Semaphore implements java.io.Serializable {
             }
         }
 
+        // 这个方法的作用也是获得信号量，只不过这个函数相比nonfairTryAcquireShared的实现，它允许改变后的信号量是负数
         final void reducePermits(int reductions) {
             for (;;) {
                 int current = getState();
                 int next = current - reductions;
+                // 向下溢出
                 if (next > current) // underflow
                     throw new Error("Permit count underflow");
+                //
                 if (compareAndSetState(current, next))
                     return;
             }
         }
 
+        /**
+         * 自旋直到信号量被清空为0
+         * @return
+         */
         final int drainPermits() {
             for (;;) {
                 int current = getState();
@@ -216,6 +229,7 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 非公平实现的tryAcquireShared
      * NonFair version
      */
     static final class NonfairSync extends Sync {
@@ -240,8 +254,18 @@ public class Semaphore implements java.io.Serializable {
             super(permits);
         }
 
+        /**
+         * tryAcquireShared返回值 state:
+         * state > 0, 说明获得共享锁成功，并且后续获取可能成功
+         * state = 0 获得共享锁成功,后续获取可能不成功
+         * state < 0 , 获取共享锁失败，线程代表的节点入队
+         *
+         * @param acquires
+         * @return
+         */
         protected int tryAcquireShared(int acquires) {
             for (;;) {
+                //
                 if (hasQueuedPredecessors())
                     return -1;
                 int available = getState();
@@ -254,6 +278,8 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 默认构造器使用非公平锁，凭证/许可最终会赋值给AQS的volatile state变量
+     *
      * Creates a {@code Semaphore} with the given number of
      * permits and nonfair fairness setting.
      *
@@ -336,6 +362,9 @@ public class Semaphore implements java.io.Serializable {
     }
 
     /**
+     * 非阻塞方法
+     * 简而言之，Semaphore#tryAcquire的作用就是尝试 一次性的、非公平的 获得锁动作。注意这种一次性动作一定要是非公平实现的，
+     * 不然大部分情况下（同步队列中只要有一个线程在等待），这种一次性动作肯定不能成功。这也是为什么要把非公平实现放到NonfairSync和FairSync的父类里的一个公共方法里。
      * Acquires a permit from this semaphore, only if one is available at the
      * time of invocation.
      *
