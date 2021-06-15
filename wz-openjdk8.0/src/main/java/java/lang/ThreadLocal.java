@@ -158,6 +158,7 @@ public class ThreadLocal<T> {
     }
 
     /**
+     * 查询绑定到这个线程上的值
      * Returns the value in the current thread's copy of this
      * thread-local variable.  If the variable has no value for the
      * current thread, it is first initialized to the value returned
@@ -167,8 +168,10 @@ public class ThreadLocal<T> {
      */
     public T get() {
         Thread t = Thread.currentThread();
+        // 获取当前线程ThreadLocalMap
         ThreadLocalMap map = getMap(t);
         if (map != null) {
+            // 以当前ThreadLocal为key查询对应的Entry
             ThreadLocalMap.Entry e = map.getEntry(this);
             if (e != null) {
                 @SuppressWarnings("unchecked")
@@ -206,13 +209,15 @@ public class ThreadLocal<T> {
      *              this thread-local.
      */
     public void set(T value) {
+        // 获取当前线程
         Thread t = Thread.currentThread();
-        // 获取ThreadLocalMap
+        // 获取当前线程的ThreadLocalMap
         ThreadLocalMap map = getMap(t);
         if (map != null)
-            // this代指ThreadLocal对象
+            // 将数据放入ThreadLocalMap中，key是ThreadLocal对象，value是我们传入的值
             map.set(this, value);
         else
+            // 创建ThreadLocalMap，并将当前ThreadLocal为对象，value为值存入map中
             createMap(t, value);
     }
 
@@ -331,11 +336,13 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 初始化容量为16
          * The initial capacity -- MUST be a power of two.
          */
         private static final int INITIAL_CAPACITY = 16;
 
         /**
+         * Entry节点对象用来保存每一个k-v键值对
          * The table, resized as necessary.
          * table.length MUST always be a power of two.
          */
@@ -464,6 +471,8 @@ public class ThreadLocal<T> {
         }
 
         /**
+         * 一个ThreadLocal只保存一对key和value
+         *
          * 总结set步骤：
          * <p>
          * 1）根据哈希值和数组长度求元素放置的位置，即数组下标
@@ -473,7 +482,7 @@ public class ThreadLocal<T> {
          * 3）如果超过阀值，就需要再哈希：
          * <p>
          * 清理一遍陈旧数据
-         * >= 3/4阀值,就执行扩容，把table扩容2倍==》注意这里3/4阀值就执行扩容，避免迟滞
+         * Table中的Entry数量 >= 3/4阀值,就执行扩容，把table扩容2倍==》注意这里3/4阀值就执行扩容，避免迟滞
          * 把老数据重新哈希散列进新table
          * Set the value associated with key.
          *
@@ -509,6 +518,7 @@ public class ThreadLocal<T> {
                 }
             }
 
+            // 该位置没有数据,直接插入
             tab[i] = new Entry(key, value);
             // table 元素数量+1
             int sz = ++size;

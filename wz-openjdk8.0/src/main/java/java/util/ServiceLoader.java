@@ -320,14 +320,19 @@ public final class ServiceLoader<S>
 	}
 
 	// Private inner class implementing fully-lazy provider lookup
-	//
+	// //目录/META-INF/services/配置文件中服务提供者懒加载的迭代器
 	private class LazyIterator
 			implements Iterator<S> {
 
 		Class<S> service;
+		//类加载器，加载这些服务提供者实现类
 		ClassLoader loader;
+		//配置文件URL对应的Enumeration对象
 		Enumeration<URL> configs = null;
+		// 存放服务提供者接口的所有实现类完整路径名称集合的迭代器
+		// LazyIterator第一次迭代时进行初始化
 		Iterator<String> pending = null;
+		// 下一个服务实现类名
 		String nextName = null;
 
 		private LazyIterator(Class<S> service, ClassLoader loader) {
@@ -335,7 +340,7 @@ public final class ServiceLoader<S>
 			this.loader = loader;
 		}
 
-		// 检查是否还有spi实现类
+		// 解析META-INF/services/目录下的文件，检查是否还有spi实现类
 		private boolean hasNextService() {
 			if (nextName != null) {
 				return true;
@@ -349,18 +354,18 @@ public final class ServiceLoader<S>
 						// 否则等同于ClassLoader.getResources()方法
 						configs = ClassLoader.getSystemResources(fullName);
 					else
-						//
+						// 将文件内容解析到configs中
 						configs = loader.getResources(fullName);
 				} catch (IOException x) {
 					fail(service, "Error locating configuration files", x);
 				}
 			}
 			while ((pending == null) || !pending.hasNext()) {
-				// 文件已经遍历完&&文件内部实现类也已经遍历完，则直接返回false
 				if (!configs.hasMoreElements()) {
 					return false;
 				}
 				// 解析某个文件下，拿到spi实现类的全限定名
+				// 解析存放服务提供者接口的所有实现类配置文件，校验配置文件中的每一行数据格式是否合法，返回存放服务提供者接口的所有实现类完整路径名称集合的迭代器，在下面会对parse方法进行介绍
 				pending = parse(service, configs.nextElement());
 			}
 			nextName = pending.next();

@@ -403,13 +403,16 @@ public abstract class ClassLoader {
     {
         synchronized (getClassLoadingLock(name)) {
             // First, check if the class has already been loaded
+            // 1. 表示从 JVM 缓存查找该类，如果该类之前被加载过，则直接从 JVM 缓存返回该类。
             Class<?> c = findLoadedClass(name);
             if (c == null) {
                 long t0 = System.nanoTime();
                 try {
                     if (parent != null) {
+                        // 2. 表示如果 JVM 缓存不存在该类，则看当前类加载器是否有父加载器，如果有的话则委托父类加载器进行加载
                         c = parent.loadClass(name, false);
                     } else {
+                        // 3. 委托 BootStrapClassloader 进行加载，如果还是没有找到，则调用当前 Classloader 的 findclass 方法进行查找。
                         c = findBootstrapClassOrNull(name);
                     }
                 } catch (ClassNotFoundException e) {
@@ -421,6 +424,7 @@ public abstract class ClassLoader {
                     // If still not found, then invoke findClass in order
                     // to find the class.
                     long t1 = System.nanoTime();
+                    // 4. 则是从本地classloader指定路径进行查找，其中findClass方法在路径找到Class文件会加载二进制字节码到内存，然后后会调用native方法defineClass1解析字节码为JVM内部的kclass对象，然后存放到Java堆的方法区。
                     c = findClass(name);
 
                     // this is the defining class loader; record the stats
@@ -430,6 +434,7 @@ public abstract class ClassLoader {
                 }
             }
             if (resolve) {
+                // 5 则是当字节码加载到内存后进行链接操作，对文件格式和字节码验证，并为 static 字段分配空间并初始化，符号引用转为直接引用，访问控制，方法覆盖等，本文对这些不进入深入探讨。
                 resolveClass(c);
             }
             return c;

@@ -1456,6 +1456,18 @@ public final class Long extends Number implements Comparable<Long> {
     }
 
     /**
+     * 参考：https://wujun234.github.io/01%20%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B8%8E%E7%AE%97%E6%B3%95/Long.bitCount()%20%E8%A7%A3%E6%9E%90/
+     * 计算二进制补码中1的个数
+     * 算法原型
+     * public static long countOne(long i) {
+     *     i = (i & (0x5555555555555555L)) + ((i >> 1) & (0x5555555555555555L));
+     *     i = (i & (0x3333333333333333L)) + ((i >> 2) & (0x3333333333333333L));
+     *     i = (i & (0x0f0f0f0f0f0f0f0fL)) + ((i >> 4) & (0x0f0f0f0f0f0f0f0fL));
+     *     i = (i & (0x00ff00ff00ff00ffL)) + ((i >> 8) & (0x00ff00ff00ff00ffL));
+     *     i = (i & (0x0000ffff0000ffffL)) + ((i >> 16) & (0x0000ffff0000ffffL));
+     *     i = (i & (0x00000000FFFFFFFFL)) + ((i >> 32) & (0x00000000FFFFFFFFL));
+     *     return i;
+     * }
      * Returns the number of one-bits in the two's complement binary
      * representation of the specified {@code long} value.  This function is
      * sometimes referred to as the <i>population count</i>.
@@ -1465,10 +1477,21 @@ public final class Long extends Number implements Comparable<Long> {
      *     representation of the specified {@code long} value.
      * @since 1.5
      */
-     public static int bitCount(long i) {
+
+
+    /**
+     * 两位二进制数，1的个数 = 二进制本身 - 二进制高位上的数字 = i - (i>>>1)
+     * @param i
+     * @return
+     */
+    public static int bitCount(long i) {
         // HD, Figure 5-14
+         // i = (i & (0x5555555555555555L)) + ((i >> 1) & (0x5555555555555555L));
         i = i - ((i >>> 1) & 0x5555555555555555L);
+        // 正常移位操作，没有优化方法
+        // 分别截取高两位的值和低两位的值，并进行合并
         i = (i & 0x3333333333333333L) + ((i >>> 2) & 0x3333333333333333L);
+        // 优化 i = (i & (0x0f0f0f0f0f0f0f0fL)) + ((i >> 4) & (0x0f0f0f0f0f0f0f0fL));，减少了一次 & 运算
         i = (i + (i >>> 4)) & 0x0f0f0f0f0f0f0f0fL;
         i = i + (i >>> 8);
         i = i + (i >>> 16);
