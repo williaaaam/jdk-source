@@ -43,6 +43,8 @@ import java.util.Set;
 import static jdk.internal.org.objectweb.asm.Opcodes.*;
 
 /**
+ * 参考：https://zhuanlan.zhihu.com/p/27159693
+ * 动态生成和匿名内部类相似形式的类
  * Lambda metafactory implementation which dynamically creates an
  * inner-class-like class per lambda callsite.
  *
@@ -87,6 +89,7 @@ import static jdk.internal.org.objectweb.asm.Opcodes.*;
     private static final ProxyClassesDumper dumper;
 
     static {
+        // -Djdk.internal.lambda.dumpProxyClasses=<path_to_your_dump_directory>可以让JDK把lambda表达式对应的运行时生成的类给dump下来了
         final String key = "jdk.internal.lambda.dumpProxyClasses";
         String path = AccessController.doPrivileged(
                 new GetPropertyAction(key), null,

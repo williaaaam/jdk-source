@@ -1772,6 +1772,7 @@ public final class Class<T> implements java.io.Serializable,
 	 */
 	@CallerSensitive
 	/**
+	 * 调用链：getMethod -> getMethod0 -> getMethodsRecursive -> privateGetDeclaredMethods
 	 * 获取方法的三个大概步骤：
 	 * 1. 检查成员访问权限
 	 * 2. 获取方法
@@ -1781,6 +1782,7 @@ public final class Class<T> implements java.io.Serializable,
 			throws NoSuchMethodException, SecurityException {
 		// 首先检查成员访问权限，默认访问策略是public都可以访问，其他情况需要申请accessDeclaredMembers权限
 		checkMemberAccess(Member.PUBLIC, Reflection.getCallerClass(), true);
+		// 获取方法
 		Method method = getMethod0(name, parameterTypes, true);
 		if (method == null) {
 			throw new NoSuchMethodException(getName() + "." + name + argumentTypesToString(parameterTypes));
@@ -2109,6 +2111,7 @@ public final class Class<T> implements java.io.Serializable,
 	@CallerSensitive
 	public Method getDeclaredMethod(String name, Class<?>... parameterTypes)
 			throws NoSuchMethodException, SecurityException {
+
 		checkMemberAccess(Member.DECLARED, Reflection.getCallerClass(), true);
 		Method method = searchMethods(privateGetDeclaredMethods(false), name, parameterTypes);
 		if (method == null) {

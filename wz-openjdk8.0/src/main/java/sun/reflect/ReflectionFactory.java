@@ -156,6 +156,7 @@ public class ReflectionFactory {
 	 *
 	 * @param field    the field
 	 * @param override true if caller has overridden aaccessibility
+	 * 在执行Field#get或Field#set之前，会先设置setAccessible(true),即override设置为true
 	 */
 	public FieldAccessor newFieldAccessor(Field field, boolean override) {
 		checkInitted();
@@ -176,7 +177,10 @@ public class ReflectionFactory {
 	 */
 	public MethodAccessor newMethodAccessor(Method method) {
 		checkInitted();
-
+		// 这里可以看出有三种MethodAccessor：MethodAccessorImpl，NativeMethodAccessorImpl和DelegatingMethodAccessorImpl
+		// noInflation默认值为false，只有指定了sun.reflect,noInflation=true,才会使用MethodAccessorImpl
+		// 默认使用NativeMethodAccessorImpl
+		// DelegatingMethodAccessorImpl连接本地和native两种策略
 		if (noInflation && !ReflectUtil.isVMAnonymousClass(method.getDeclaringClass())) {
 			return new MethodAccessorGenerator().
 					generateMethod(method.getDeclaringClass(),
