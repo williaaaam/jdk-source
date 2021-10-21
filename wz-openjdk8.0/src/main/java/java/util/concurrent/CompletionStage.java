@@ -42,6 +42,7 @@ import java.util.function.BiFunction;
 import java.util.concurrent.Executor;
 
 /**
+ * 用来表示异步过程中的一个阶段，它可以在另一个CompletableStage完成时做一些操作或计算
  * A stage of a possibly asynchronous computation, that performs an
  * action or computes a value when another CompletionStage completes.
  * A stage completes upon termination of its computation, but this may

@@ -463,14 +463,16 @@ public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
         while ((h = f.stack) != null ||
                (f != this && (h = (f = this).stack) != null)) {
             CompletableFuture<?> d; Completion t;
-            if (f.casStack(h, t = h.next)) {
+            if (f.casStack(h, t = h.next)) { // 提取stack第一个元素后cas重置stack
                 if (t != null) {
                     if (f != this) {
+                        // f不等于this表示h.tryFire返回了另一个f
                         pushStack(h);
                         continue;
                     }
                     h.next = null;    // detach
                 }
+                // 执行Completion.tryFire回调
                 f = (d = h.tryFire(NESTED)) == null ? this : d;
             }
         }
@@ -569,13 +571,17 @@ public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
         UniApply(Executor executor, CompletableFuture<V> dep,
                  CompletableFuture<T> src,
                  Function<? super T,? extends V> fn) {
+            // 3. UniCompletion中的dep和src分别就是第2步中的d和this，dep的执行依赖于src
             super(executor, dep, src); this.fn = fn;
         }
         final CompletableFuture<V> tryFire(int mode) {
             CompletableFuture<V> d; CompletableFuture<T> a;
             if ((d = dep) == null ||
+                    // 6. 如果uniApply执行成功，则会进到下面的postFire调用，
+                    //    否则return null，也就是tryFire失败了，就要等待以后的主动complete来再次触发
                 !d.uniApply(a = src, fn, mode > 0 ? null : this))
                 return null;
+            // 9. tryFire成功后，会把以下几个属性设为null，代表此Completion已经完成任务，变成dead状态
             dep = null; src = null; fn = null;
             return d.postFire(a, mode);
         }
@@ -585,6 +591,7 @@ public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
                                Function<? super S,? extends T> f,
                                UniApply<S,T> c) {
         Object r; Throwable x;
+        // 7. 如果a（也就是c中的src）还没有完成，那result是空，这里就会直接返回false
         if (a == null || (r = a.result) == null || f == null)
             return false;
         tryComplete: if (result == null) {
@@ -599,6 +606,8 @@ public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
                 if (c != null && !c.claim())
                     return false;
                 @SuppressWarnings("unchecked") S s = (S) r;
+                // 8. 如果r不为空，则会作为f的输入参数，f的输出则成为当前CompletableFuture的完成值。
+                //    通常能走到这里的话，就会呈链式反应一直传递下去。
                 completeValue(f.apply(s));
             } catch (Throwable ex) {
                 completeThrowable(ex);
@@ -610,12 +619,17 @@ public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
     private <V> CompletableFuture<V> uniApplyStage(
         Executor e, Function<? super T,? extends V> f) {
         if (f == null) throw new NullPointerException();
+        // 1.新建了一个CompletableFuture
         CompletableFuture<V> d =  new CompletableFuture<V>();
         if (e != null || !d.uniApply(this, f, null)) {
+            // 2. 用d，this和f构造了一个UniApply对象c。
             UniApply<T,V> c = new UniApply<T,V>(e, d, this, f);
+            // 4. UniApply继承UniCompletion继承Completion，c其实就是Completion对象，被push到栈中
             push(c);
+            // 5. 尝试执行c，
             c.tryFire(SYNC);
         }
+        // 注意这个d会一直返回到调用thenApply的地方，后续的链式调用会作用在这个d上面
         return d;
     }
 
@@ -1585,13 +1599,17 @@ public class CompletableFuture<T> implements Future<T>, CompletionStage<T> {
             CompletableFuture<T> d; Supplier<T> f;
             if ((d = dep) != null && (f = fn) != null) {
                 dep = null; fn = null;
+                // 任务还未执行
                 if (d.result == null) {
                     try {
+                        // 执行Supplier方法并设置result
                         d.completeValue(f.get());
                     } catch (Throwable ex) {
+                        // 异常result AltResult
                         d.completeThrowable(ex);
                     }
                 }
+                // 正常执行回调o
                 d.postComplete();
             }
         }
