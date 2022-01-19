@@ -2,12 +2,12 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.example</groupId>
-  <artifactId>wz-jdk-source</artifactId>
+  <artifactId>jdk-source</artifactId>
   <packaging>pom</packaging>
   <version>1.0-SNAPSHOT</version>
   <modules>
-    <module>wz-openjdk8.0</module>
-    <module>wz-jdk7.0</module>
+    <module>openjdk8.0</module>
+    <module>jdk7.0</module>
   </modules>
   <name>wz-jdk-source Maven Mojo</name>
   <url>http://maven.apache.org</url>

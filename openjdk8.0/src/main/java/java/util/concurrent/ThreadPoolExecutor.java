@@ -1527,9 +1527,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
          * and so reject the task.
          */
         int c = ctl.get();
-        // 1. 活动线程数小于核心线程数,创建并启动一个线程来执行新提交的任务
+        // 1. 活动线程数小于核心线程数,使用线程工厂ThreadFactory创建并启动一个线程来执行新提交的任务
         if (workerCountOf(c) < corePoolSize) {
-            // 创建并启动一个线程来执行新提交的任务
+            // 创建并启动一个core线程来执行新提交的任务
             if (addWorker(command, true))
                 return;
             c = ctl.get();

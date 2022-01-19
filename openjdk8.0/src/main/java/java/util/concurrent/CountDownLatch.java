@@ -194,10 +194,10 @@ public class CountDownLatch {
                     return false;
                 int nextc = c - 1;
                 // 使用AQS提供的CAS算法更新state变量值
-                if (compareAndSetState(c, nextc)
-                // 会唤醒阻塞在await()上的线程
-                // 如果nextc等于0，代表此时state同步变量值为0，返回true
-                return nextc == 0;
+                if (compareAndSetState(c, nextc))
+                    // 会唤醒阻塞在await()上的线程
+                    // 如果nextc等于0，代表此时state同步变量值为0，返回true
+                    return nextc == 0;
             }
         }
     }
