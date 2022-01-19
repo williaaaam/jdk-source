@@ -128,13 +128,16 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          */
         final boolean nonfairTryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
+            // 判断锁的状态
             int c = getState();
             if (c == 0) {
+                // 直接cas,不管是否有线程排队
                 if (compareAndSetState(0, acquires)) {
                     setExclusiveOwnerThread(current);
                     return true;
                 }
             }
+            // 排队
             else if (current == getExclusiveOwnerThread()) {
                 int nextc = c + acquires;
                 if (nextc < 0) // overflow
@@ -203,7 +206,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
-     * 非公平锁
+     * 非公平锁模式如果没有抢到锁，一朝排队，永远排队
      * Sync object for non-fair locks
      */
     static final class NonfairSync extends Sync {
@@ -229,9 +232,11 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
+     * 公平锁
      * Sync object for fair locks
      */
     static final class FairSync extends Sync {
+
         private static final long serialVersionUID = -3000897897090466540L;
 
         final void lock() {
@@ -245,17 +250,21 @@ public class ReentrantLock implements Lock, java.io.Serializable {
          */
         protected final boolean tryAcquire(int acquires) {
             final Thread current = Thread.currentThread();
+            // 同步状态
             int c = getState();
             if (c == 0) {
                 // 公平锁查看是否已经有线程排队了
-                // cas
+                // cas修改状态
                 // 设置自己为独占线程
-                if (!hasQueuedPredecessors() &&
+                if (!hasQueuedPredecessors() && // 判断队列中是否有线程在排队
+                        // 情况：Tn当前要修改state=1 ,恰好此时T3 线程 释放了锁，state=0,那么此时不能使用cas获取锁，因为T3后面可能还有其他线程在等待着锁
                     compareAndSetState(0, acquires)) {
                     setExclusiveOwnerThread(current);
                     return true;
                 }
             }
+            // 锁被别的线程持有
+            // Reentrant支持重入的原因
             else if (current == getExclusiveOwnerThread()) {
                 int nextc = c + acquires;
                 if (nextc < 0)
@@ -268,6 +277,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
+     * 默认是非公平锁
      * Creates an instance of {@code ReentrantLock}.
      * This is equivalent to using {@code ReentrantLock(false)}.
      */

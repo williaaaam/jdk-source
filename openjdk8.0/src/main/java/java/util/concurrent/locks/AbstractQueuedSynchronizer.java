@@ -631,6 +631,7 @@ public abstract class AbstractQueuedSynchronizer
             if (t == null) { // Must initialize
                 if (compareAndSetHead(new Node()))
                     // 延迟初始化，初始化头结点和尾结点
+                    // thread, prev, next均为null
                     tail = head;
             } else {
                 node.prev = t;
@@ -653,10 +654,11 @@ public abstract class AbstractQueuedSynchronizer
      * @return the new node
      */
     private Node addWaiter(Node mode) {
-        // 新建Node节点
+        // 新建Node节点，包含当前线程, 当前还没有进行关联
         Node node = new Node(Thread.currentThread(), mode);
         // Try the fast path of enq; backup to full enq on failure
         // 尝试快速添加尾结点
+        // 队尾
         Node pred = tail;
         if (pred != null) {
             // 新建节点前驱指向pred
@@ -963,6 +965,7 @@ public abstract class AbstractQueuedSynchronizer
     final boolean acquireQueued(final Node node, int arg) {
         boolean failed = true;
         try {
+            // 唤醒阻塞线程
             boolean interrupted = false;
             // 开始自旋要么获取锁，要么被中断
             // 跳出循环的条件是：前置节点是头结点，且当前线程获取锁成功
@@ -970,6 +973,7 @@ public abstract class AbstractQueuedSynchronizer
                 // 当前节点前驱节点
                 final Node p = node.predecessor();
                 // 如果p是头结点，说明当前节点在真实数据队列的首部，就尝试获取锁（别忘了头结点是虚节点）
+                // p == head 表示有资格获取锁
                 if (p == head && tryAcquire(arg)) { // 如果是头结点，则尝试获取锁
                     // 当前节点设置为头结点,当前节点已经拿到了锁，将老head节点移除并将自身设置为头结点
                     setHead(node);
@@ -979,10 +983,12 @@ public abstract class AbstractQueuedSynchronizer
                     // 返回中断状态，true代表阻塞时被中断
                     return interrupted;
                 }
+                // 加锁失败
                 // 说明p为头节点且当前没有获取到锁（可能是非公平锁被抢占了）或者是p不为头结点，
                 // 这个时候就要判断当前node是否要被阻塞（被阻塞条件：前驱节点的waitStatus为-1(Signal)），防止无限循环浪费资源。
                 // 为了防止因死循环导致CPU资源被浪费，我们会判断前置节点的状态来决定是否要将当前线程挂起
                 if (shouldParkAfterFailedAcquire(p, node) &&
+                        // 挂起
                         parkAndCheckInterrupt())
                     // 中断
                     interrupted = true;
@@ -1348,7 +1354,8 @@ public abstract class AbstractQueuedSynchronizer
         // 获取同步状态失败，新增节点加入到队尾，并且当前线程可中断
         // 为什么获得了锁，还要中断当前线程呢 ？ Java提供的协作式中断知识
         /**
-         * 当中断线程被唤醒时，并不知道被唤醒的原因，可能是当前线程在等待中被中断，也可能是释放了锁以后被唤醒。因此我们通过Thread.interrupted()方法检查中断标记（该方法返回了当前线程的中断状态，并将当前线程的中断标识设置为False），并记录下来，如果发现该线程被中断过，就再中断一次。
+         * 当中断线程被唤醒时，并不知道被唤醒的原因，可能是当前线程在等待中被中断，
+         * 也可能是释放了锁以后被唤醒。因此我们通过Thread.interrupted()方法检查中断标记（该方法返回了当前线程的中断状态，并将当前线程的中断标识设置为False），并记录下来，如果发现该线程被中断过，就再中断一次。
          *
          * 线程在等待资源的过程中被唤醒，唤醒后还是会不断地去尝试获取锁，直到抢到锁为止。也就是说，在整个流程中，并不响应中断，只是记录中断记录。最后抢到锁返回了，那么如果被中断过的话，就需要补充一次中断。
          */
@@ -1703,8 +1710,10 @@ public abstract class AbstractQueuedSynchronizer
         Node h = head;
         Node s;
         /**
-         * 双向链表中，第一个节点为虚节点，其实并不存储任何信息，只是占位。真正的第一个有数据的节点，是在第二个节点开始的。当h != t时： 如果(s = h.next) == null，等待队列正在有线程进行初始化，但只是进行到了Tail指向Head，没有将Head指向Tail，此时队列中有元素，需要返回True（这块具体见下边代码分析）。
-         * 如果(s = h.next) != null，说明此时队列中至少有一个有效节点。如果此时s.thread == Thread.currentThread()，说明等待队列的第一个有效节点中的线程与当前线程相同，那么当前线程是可以获取资源的；如果s.thread != Thread.currentThread()，说明等待队列的第一个有效节点线程与当前线程不同，当前线程必须加入进等待队列。
+         * 双向链表中，第一个节点为虚节点，其实并不存储任何信息，只是占位。真正的第一个有数据的节点，是在第二个节点开始的。
+         * 当h != t时： 如果(s = h.next) == null，等待队列正在有线程进行初始化，但只是进行到了Tail指向Head，没有将Head指向Tail，此时队列中有元素，需要返回True（这块具体见下边代码分析）。
+         * 如果(s = h.next) != null，说明此时队列中至少有一个有效节点。如果此时s.thread == Thread.currentThread()，说明等待队列的第一个有效节点中的线程与当前线程相同，那么当前线程是可以获取资源的；
+         * 如果s.thread != Thread.currentThread()，说明等待队列的第一个有效节点线程与当前线程不同，当前线程必须加入进等待队列。
          *
          * 代码详见：// java.util.concurrent.locks.AbstractQueuedSynchronizer#enq
          *
@@ -1719,6 +1728,8 @@ public abstract class AbstractQueuedSynchronizer
          *        }
          * }
          */
+
+        // 只要队列形成，h就一定不可能等于t
         return h != t &&
                 ((s = h.next) == null ||
                         // 队列中第一个有效节点持有线程 不等于当前线程，当前线程必须加入等待队列
