@@ -816,6 +816,7 @@ public abstract class AbstractQueuedSynchronizer
 
     /**
      * 取消尝试acquire操作
+     * cancelAcquire()为什么都是对Next指针进行了操作呢？因为前面可能执行过了shouldParkAfterFailAcquire（）方法中，可能删除了当前节点的前置节点了
      * Cancels an ongoing attempt to acquire.
      *
      * @param node the node
@@ -878,7 +879,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * 判断当前节点是否需要被阻塞
+     * 前驱节点判断当前线程是否应该被阻塞
      * 检查和更新未能成功获得锁的节点状态
      * true: 当前线程应当阻塞
      * Checks and updates status for a node that failed to acquire.
@@ -890,16 +891,16 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if thread should block
      */
     private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
-        // 前驱节点等待状态
+        // 前驱节点状态
         int ws = pred.waitStatus;
-        if (ws == Node.SIGNAL)
+        if (ws == Node.SIGNAL) // 说明前驱节点状态为唤醒状态，当前线程可以挂起
             /*
              * This node has already set status asking a release
              * to signal it, so it can safely park.
              */
             // 当前节点前驱节点status是signal,表示当prev释放了同步状态或者取消了，会通知当前节点。所以当前节点可以安心阻塞了
             return true;
-        if (ws > 0) {
+        if (ws > 0) { // 取消状态
             /*
              * Predecessor was cancelled. Skip over predecessors and
              * indicate retry.
@@ -907,7 +908,8 @@ public abstract class AbstractQueuedSynchronizer
             // 前驱节点已经被取消，需要将取消的节点从队列中移除，直到找到一个不是取消的节点为止
             do {
                 // 从pred从后向前查找不是取消的节点
-                // 节点已经在队列中等待获取共享资源，当前节点之前的节点都不会出现变化
+                // shouldParkAfterFailedAcquire是获取锁失败的情况下才会执行，进入该方法后，节点已经在队列中等待获取共享资源，当前节点之前的节点都不会出现变化
+                // 循环向前查找取消节点，把取消节点从队列中剔除
                 node.prev = pred = pred.prev;
             } while (pred.waitStatus > 0);
             // 和循环体中一起将取消节点从队列中移除
@@ -963,12 +965,14 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if interrupted while waiting
      */
     final boolean acquireQueued(final Node node, int arg) {
+        // 标记是否成功拿到资源
         boolean failed = true;
         try {
-            // 唤醒阻塞线程
+            // 标记等待过程中是否中断过
             boolean interrupted = false;
-            // 开始自旋要么获取锁，要么被中断
             // 跳出循环的条件是：前置节点是头结点，且当前线程获取锁成功
+
+            // 开始自旋，要么获取锁，要么中断
             for (; ; ) {
                 // 当前节点前驱节点
                 final Node p = node.predecessor();
@@ -994,9 +998,12 @@ public abstract class AbstractQueuedSynchronizer
                     interrupted = true;
             }
         } finally {
+            // tryAcquired()可能会抛异常，方法执行到这里
+            // 如果处于排队等候机制中的线程一直无法获取锁，不会一直等待，线程所在的节点状态会变成取消状态，并从同步队列中释放
             if (failed)
                 // 取消获取同步状态，避免资源浪费
                 // 将Node状态标记为CANCELLED
+                // CANCELLED状态节点生成
                 cancelAcquire(node);
         }
     }
@@ -1350,6 +1357,7 @@ public abstract class AbstractQueuedSynchronizer
      */
     public final void acquire(int arg) {
         if (!tryAcquire(arg) &&
+                // addWaiter将请求锁的线程封装成Node节点入队，并返回该节点Node, 进入到acquireQueued()方法中，acquireQueued()方法会对排队的线程进行获锁操作,直到获取成功或者不再需要获取(中断)
                 acquireQueued(addWaiter(Node.EXCLUSIVE), arg))
         // 获取同步状态失败，新增节点加入到队尾，并且当前线程可中断
         // 为什么获得了锁，还要中断当前线程呢 ？ Java提供的协作式中断知识
@@ -2041,7 +2049,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * 等待队列是不带头结点的单向链表
+     * 等待队列是不带头结点的单向队列，条件队列内部的Node只用到了thread, waitStatus, nextWaiter属性
      * Condition implementation for a {@link
      * AbstractQueuedSynchronizer} serving as the basis of a {@link
      * Lock} implementation.
@@ -2078,6 +2086,7 @@ public abstract class AbstractQueuedSynchronizer
         // Internal methods
 
         /**
+         * 尾插法将节点插入条件队列
          * Adds a new waiter to wait queue.
          *
          * @return its new wait node
@@ -2089,6 +2098,7 @@ public abstract class AbstractQueuedSynchronizer
                 unlinkCancelledWaiters();
                 t = lastWaiter;
             }
+            // 创建CONDITION节点
             Node node = new Node(Thread.currentThread(), Node.CONDITION);
             if (t == null)
                 firstWaiter = node;
@@ -2284,7 +2294,8 @@ public abstract class AbstractQueuedSynchronizer
                 throw new InterruptedException();
             // 1. 添加新节点（Node.Condition），将当前线程保存在其中，并添加到等待队列队尾
             Node node = addConditionWaiter();
-            // 2. 释放当前线程所占用的lock,并且唤醒同步队列中的下一个节点
+            // 2. 释放当前线程所占用的锁(修改state),并且唤醒同步队列中的下一个节点
+            // savedState 当前线程持有锁的个数
             int savedState = fullyRelease(node);
             int interruptMode = 0;
             /**
@@ -2296,10 +2307,10 @@ public abstract class AbstractQueuedSynchronizer
              */
             // 节点已经不在同步队列中，则调用 park 让其在等待队列中挂着
             while (!isOnSyncQueue(node)) {
-                // 3. 当前线程进入等待状态
+                // 3. 当前线程进入等待waiting状态
                 LockSupport.park(this);
                 // 说明 signal 被调用了或者线程被中断，校验下唤醒原因
-                // 如果因为终端被唤醒，则跳出循环
+                // 如果因为中断被唤醒，则跳出循环
                 if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)
                     break;
             }
@@ -2307,11 +2318,12 @@ public abstract class AbstractQueuedSynchronizer
 
             //while 循环结束， 线程开始抢锁
             /**
-             * 当前线程被中断或者调用condition.signal/condition.signalAll方法当前节点移动到了同步队列后 ，这是当前线程退出await方法的前提条件。当退出while循环后就会调用acquireQueued(node, savedState)（之前Reentlock中讲过），
+             * 当前线程被中断或者调用condition.signal/condition.signalAll方法当前节点移动到了同步队列后 ，
+             * 这是当前线程退出await方法的前提条件。当退出while循环后就会调用acquireQueued(node, savedState)（之前Reentlock中讲过），
              * 自旋过程中线程不断尝试获取同步状态，直至获取lock成功。这也说明了退出await方法必须是已经获得了condition关联的lock。
              */
             // 自旋获取到同步状态(成功获取到锁)
-            if (acquireQueued(node, savedState) && interruptMode != THROW_IE)
+            if (acquireQueued(node, savedState) && interruptMode != THROW_IE) // 上述while中不是因为中断而退出循环，是因为condition.signal， 将条件队列中的节点移动到同步队列
                 interruptMode = REINTERRUPT;
             if (node.nextWaiter != null) // clean up if cancelled
                 // 删除等待队列的取消节点

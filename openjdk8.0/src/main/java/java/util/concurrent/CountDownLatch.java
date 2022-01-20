@@ -38,6 +38,7 @@ package java.util.concurrent;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 /**
+ * 同步工具：CountDownLatch使用AQS同步状态来表示计数，计数为0时，所有的Acquire操作（CountDownLatch的await方法）才可以通过
  * A synchronization aid that allows one or more threads to wait until
  * a set of operations being performed in other threads completes.
  *

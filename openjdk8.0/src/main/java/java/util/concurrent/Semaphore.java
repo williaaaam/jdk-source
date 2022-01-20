@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 /**
+ * Semaphore使用AQS同步状态来保存信号量的当前计数
  * A counting semaphore.  Conceptually, a semaphore maintains a set of
  * permits.  Each {@link #acquire} blocks if necessary until a permit is
  * available, and then takes it.  Each {@link #release} adds a permit,

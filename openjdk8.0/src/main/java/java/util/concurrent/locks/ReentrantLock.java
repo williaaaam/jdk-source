@@ -296,6 +296,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
     }
 
     /**
+     * lies dormant : 处于休眠状态
      * Acquires the lock.
      *
      * <p>Acquires the lock if it is not held by another thread and returns
