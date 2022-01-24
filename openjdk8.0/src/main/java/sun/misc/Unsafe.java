@@ -877,7 +877,10 @@ public final class Unsafe {
                                                      Object expected,
                                                      Object x);
 
-    /**
+    /**+
+     * 整个“比较+更新”操作封装在compareAndSwapInt()中，在JNI里是借助于一个CPU指令完成的，属于原子操作，可以保证多个线程都能够看到同一个变量的修改值。
+     * <p>
+     * 后续JDK通过CPU的cmpxchg指令，去比较寄存器中的 A 和 内存中的值 V。如果相等，就把要写入的新值 B 存入内存中。如果不相等，就将内存值 V 赋值给寄存器中的值 A。然后通过Java代码中的while循环再次调用cmpxchg指令进行重试，直到设置成功为止。
      * Atomically update Java variable to <tt>x</tt> if it is currently
      * holding <tt>expected</tt>.
      * @return <tt>true</tt> if successful

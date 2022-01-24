@@ -39,6 +39,7 @@ import java.util.function.BinaryOperator;
 import sun.misc.Unsafe;
 
 /**
+ * Java从1.5开始JDK提供了AtomicReference类来保证引用对象之间的原子性：解决多个共享变量的更新问题，可以把多个变量放在一个对象里来进行CAS操作
  * An object reference that may be updated atomically. See the {@link
  * java.util.concurrent.atomic} package specification for description
  * of the properties of atomic variables.

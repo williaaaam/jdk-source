@@ -36,6 +36,7 @@
 package java.util.concurrent.atomic;
 
 /**
+ * AtomicStampedReference类来解决ABA问题
  * An {@code AtomicStampedReference} maintains an object reference
  * along with an integer "stamp", that can be updated atomically.
  *
@@ -149,9 +150,9 @@ public class AtomicStampedReference<V> {
         Pair<V> current = pair;
         return
             expectedReference == current.reference &&
-            expectedStamp == current.stamp &&
+            expectedStamp == current.stamp && // 比较引用好版本号
             ((newReference == current.reference &&
-              newStamp == current.stamp) ||
+              newStamp == current.stamp) || // 避免cas
              casPair(current, Pair.of(newReference, newStamp)));
     }
 
