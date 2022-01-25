@@ -731,7 +731,8 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * 调用doReleaseShared函数线程分为两种情况：1. 同步队列中刚获取到共享锁的线程 2. 释放共享锁的线程
+     * 调用doReleaseShared函数线程分为两种情况：
+     * 1. 同步队列中刚获取到共享锁的线程 2. 释放共享锁的线程
      * 唤醒同步队列中的阻塞线程
      * Release action for shared mode -- signals successor and ensures
      * propagation. (Note: For exclusive mode, release just amounts
@@ -881,7 +882,7 @@ public abstract class AbstractQueuedSynchronizer
     }
 
     /**
-     * 前驱节点判断当前线程是否应该被阻塞
+     * 通过前驱节点判断当前线程是否应该被阻塞
      * 检查和更新未能成功获得锁的节点状态
      * true: 当前线程应当阻塞
      * Checks and updates status for a node that failed to acquire.

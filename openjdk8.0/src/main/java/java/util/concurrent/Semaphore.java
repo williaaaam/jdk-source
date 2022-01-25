@@ -266,7 +266,7 @@ public class Semaphore implements java.io.Serializable {
          */
         protected int tryAcquireShared(int acquires) {
             for (;;) {
-                //
+                // 同步队列中是否有前驱节点
                 if (hasQueuedPredecessors())
                     return -1;
                 int available = getState();
@@ -280,7 +280,7 @@ public class Semaphore implements java.io.Serializable {
 
     /**
      * 默认构造器使用非公平锁，凭证/许可最终会赋值给AQS的volatile state变量
-     *
+     * permits :可用许可数，可以为负值，先release（）后acquire
      * Creates a {@code Semaphore} with the given number of
      * permits and nonfair fairness setting.
      *
