@@ -523,6 +523,7 @@ public class FileChannelImpl
                     assert n > 0;
                     position += n;
                 } finally {
+                    // 释放堆外内存
                     unmap(dbb);
                 }
             } catch (ClosedByInterruptException e) {
@@ -927,6 +928,7 @@ public class FileChannelImpl
                 mapSize = size + pagePosition;
                 try {
                     // If map0 did not throw an exception, the address is valid
+                    // mmap系统调用
                     addr = map0(imode, mapPosition, mapSize);
                 } catch (OutOfMemoryError x) {
                     // An OutOfMemoryError may indicate that we've exhausted

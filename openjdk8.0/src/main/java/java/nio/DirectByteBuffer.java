@@ -115,27 +115,49 @@ class DirectByteBuffer
     // Primary constructor
     //
     DirectByteBuffer(int cap) {                   // package-private
-
+        // 主要是调用ByteBuffer的构造方法，为字段赋值
         super(-1, 0, cap, cap);
+        // 如果是按页对齐，则还要加一个Page的大小；我们分析只pa为false的情况就好了
         boolean pa = VM.isDirectMemoryPageAligned();
+
         int ps = Bits.pageSize();
         long size = Math.max(1L, (long)cap + (pa ? ps : 0));
+        // 预分配内存
+
+        /**
+         * 在创建一个新的DirecByteBuffer时，会先确认有没有足够的内存，如果没有的话，会通过一些手段回收一部分堆外内存，直到可用内存大于需要分配的内存。具体步骤如下：
+         * 1. 如果可用堆外内存足够，则直接返回
+         * 2. 调用tryHandlePendingReference方法回收已经变成垃圾的DirectByteBuffer对象对应的堆外内存，直到可用内存足够，或目前没有垃圾DirectByteBuffer对象
+         * 3. 触发一次full gc，其主要目的是为了防止’冰山现象‘：一个DirectByteBuffer对象本身占用的内存很小，但是它可能引用了一块很大的堆外内存。如果DirectByteBuffer对象进入了老年代之后变成了垃圾，因为老年代GC一直没有触发，导致这块堆外内存也一直没有被回收。需要注意的是如果使用参数-XX:+DisableExplicitGC，那System.gc();是无效的
+         * 4. 重复1，2步骤的流程，直到可用内存大于需要分配的内存
+         * 5. 如果超出指定次数还没有回收到足够内存，则OOM
+         *
+         * 链接：https://juejin.cn/post/6844903710766661639
+         * 来源：稀土掘金
+         */
         Bits.reserveMemory(size, cap);
 
         long base = 0;
         try {
+            // 分配堆外内存
             base = unsafe.allocateMemory(size);
         } catch (OutOfMemoryError x) {
             Bits.unreserveMemory(size, cap);
             throw x;
         }
+        // 将分配的内存的所有值赋值为0
         unsafe.setMemory(base, size, (byte) 0);
+        // 为address赋值，address就是分配内存的起始地址，之后的数据读写都是以它作为基准
         if (pa && (base % ps != 0)) {
             // Round up to page boundary
             address = base + ps - (base & (ps - 1));
         } else {
+            //pa为false的情况，address==base
             address = base;
         }
+        // 创建一个Cleaner，将this和一个Deallocator对象传进去
+        // DirectByteBuffer成为垃圾的时候，将调用Cleaner#clean方法回收堆外内存，避免内存泄漏
+        // Cleaner是虚引用在JDK中的一个典型应用场景。
         cleaner = Cleaner.create(this, new Deallocator(base, size, cap));
         att = null;
 

@@ -189,6 +189,8 @@ public abstract class Buffer {
 
     // Used only by direct buffers
     // NOTE: hoisted here for speed in JNI GetDirectBufferAddress
+    // DirectByteBuffer 自身是一个Java对象，在Java堆中；
+    // 而这个对象中有个long类型字段address，记录着一块调用 malloc() 申请到的native memory。
     long address;
 
     // Creates a new buffer with the given mark, position, limit, and capacity,

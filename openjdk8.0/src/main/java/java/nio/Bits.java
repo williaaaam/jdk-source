@@ -642,22 +642,25 @@ class Bits {                            // package-private
     // freed.  They allow the user to control the amount of direct memory
     // which a process may access.  All sizes are specified in bytes.
     static void reserveMemory(long size, int cap) {
-
+        // maxMemory代表最大堆外内存，也就是-XX:MaxDirectMemorySize指定的值
         if (!memoryLimitSet && VM.isBooted()) {
             maxMemory = VM.maxDirectMemory();
             memoryLimitSet = true;
         }
 
         // optimist!
+        // 1.如果堆外内存还有空间，则直接返回
         if (tryReserveMemory(size, cap)) {
             return;
         }
 
+        // 走到这里说明堆外内存剩余空间已经不足了
         final JavaLangRefAccess jlra = SharedSecrets.getJavaLangRefAccess();
 
         // retry while helping enqueue pending Reference objects
         // which includes executing pending Cleaner(s) which includes
         // Cleaner(s) that free direct buffer memory
+        // 2.堆外内存进行回收，最终会调用到Cleaner#clean的方法。如果目前没有堆外内存可以回收则跳过该循环
         while (jlra.tryHandlePendingReference()) {
             if (tryReserveMemory(size, cap)) {
                 return;
@@ -665,6 +668,7 @@ class Bits {                            // package-private
         }
 
         // trigger VM's Reference processing
+        // 3.主动触发一次GC，目的是触发老年代GC
         System.gc();
 
         // a retry loop with exponential back-off delays
@@ -677,12 +681,15 @@ class Bits {                            // package-private
                 if (tryReserveMemory(size, cap)) {
                     return;
                 }
+                // 最多睡眠9次
                 if (sleeps >= MAX_SLEEPS) {
                     break;
                 }
                 if (!jlra.tryHandlePendingReference()) {
+                    // 堆外内存回收失败，进入睡眠后，再重试
                     try {
                         Thread.sleep(sleepTime);
+                        //
                         sleepTime <<= 1;
                         sleeps++;
                     } catch (InterruptedException e) {
@@ -692,6 +699,8 @@ class Bits {                            // package-private
             }
 
             // no luck
+            // 5.超出指定的次数后，还是没有足够内存，则抛异常
+            // 重试0.5s后抛出OOME
             throw new OutOfMemoryError("Direct buffer memory");
 
         } finally {
@@ -708,6 +717,8 @@ class Bits {                            // package-private
         // actual memory usage, which will differ when buffers are page
         // aligned.
         long totalCap;
+        // totalCapacity代表通过DirectByteBuffer分配的堆外内存的大小
+        // 当已分配大小<=还剩下的堆外内存大小时，更新totalCapacity的值返回true
         while (cap <= maxMemory - (totalCap = totalCapacity.get())) {
             if (totalCapacity.compareAndSet(totalCap, totalCap + cap)) {
                 reservedMemory.addAndGet(size);

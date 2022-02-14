@@ -188,21 +188,22 @@ public abstract class Reference<T> {
      *         {@code false} otherwise.
      */
     /**
-     * 将失去对象的Reference对象加入到所属的引用队列中
+     * 将失去引用的Reference对象加入到所属的引用队列中
      * @param waitForNotify
      * @return
      */
     static boolean tryHandlePending(boolean waitForNotify) {
         Reference<Object> r;
-        // Cleaner属于sun.misc包，是jdk内部提供的用来释放非堆内存资源的api
+        // Cleaner属于sun.misc包，是jdk内部提供的用来释放堆外内存资源的api
         Cleaner c;
         try {
             synchronized (lock) {
-                // 如果pending为null，则一直等到pending赋值，jvm负责notify或者interrupt
+                // pending由jvm gc时设置
                 if (pending != null) {
                     r = pending;
                     // 'instanceof' might throw OutOfMemoryError sometimes
                     // so do this before un-linking 'r' from the 'pending' chain...
+                    // 如果是cleaner对象，则记录下来
                     c = r instanceof Cleaner ? (Cleaner) r : null;
                     // unlink 'r' from 'pending' chain
                     pending = r.discovered;
@@ -232,6 +233,7 @@ public abstract class Reference<T> {
 
         // Fast path for cleaners
         if (c != null) {
+            // 调用clean方法 清理堆外内存
             c.clean();
             return true;
         }

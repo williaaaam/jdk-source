@@ -47,6 +47,7 @@ public class IOUtil {
                      NativeDispatcher nd)
         throws IOException
     {
+        // 如果是堆外内存则直接写
         if (src instanceof DirectBuffer)
             return writeFromNativeBuffer(fd, src, position, nd);
 
@@ -55,6 +56,7 @@ public class IOUtil {
         int lim = src.limit();
         assert (pos <= lim);
         int rem = (pos <= lim ? lim - pos : 0);
+        // 创建一块堆外内存，并将数据赋值到堆外内存中去
         ByteBuffer bb = Util.getTemporaryDirectBuffer(rem);
         try {
             bb.put(src);
@@ -86,13 +88,25 @@ public class IOUtil {
         if (rem == 0)
             return 0;
         if (position != -1) {
+            // pread, pwrite - read from or write to a file descriptor at a given offset
+            // pwrite系统调用，需要传入buffer起始地址和buffer count作为参数
+            // 系统调用要求我们使用连续的地址空间作为buffer
+            // ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+            // pwrite() writes up to count bytes from the buffer starting at buf to the file descriptor fd at offset offset. The file offset is not changed.
+            // 从文件描述符fd偏移位置offset处最多写入来自buffer的rem个字节
             written = nd.pwrite(fd,
                                 ((DirectBuffer)bb).address() + pos,
                                 rem, position);
         } else {
+            // https://www.zhihu.com/question/60892134/answer/182225677
+            // write() writes up to count bytes from the buffer pointed buf to the file referred to by the file descriptor fd.
+            // ssize_t write(int fd, const void *buf, size_t count);
+            // 以address作为基准地址，最多写入rem个字节数据到文件中fd
+            // written:成功写入文件的字节个数  On success, the number of bytes written is returned (zero indicates nothing was written). On error, -1 is returned, and errno is set appropriately.
             written = nd.write(fd, ((DirectBuffer)bb).address() + pos, rem);
         }
         if (written > 0)
+            // 移动position位置
             bb.position(pos + written);
         return written;
     }

@@ -468,6 +468,7 @@ class SocketChannelImpl
                     writerThread = NativeThread.current();
                 }
                 for (;;) {
+                    // NIO文件写最终会调用到IOUtil#write
                     n = IOUtil.write(fd, buf, -1, nd);
                     if ((n == IOStatus.INTERRUPTED) && isOpen())
                         continue;
