@@ -65,7 +65,9 @@ public class ReferenceQueue<T> {
                 return false;
             }
             assert queue == this;
+            // 表示引用r已经存入ReferenceQueue之中
             r.queue = ENQUEUED;
+            // 头插法入队
             r.next = (head == null) ? r : head;
             head = r;
             queueLength++;
@@ -77,13 +79,19 @@ public class ReferenceQueue<T> {
         }
     }
 
+    /**
+     * 删除引用队列头结点
+     * @return
+     */
     private Reference<? extends T> reallyPoll() {       /* Must hold lock */
         Reference<? extends T> r = head;
         if (r != null) {
             @SuppressWarnings("unchecked")
             Reference<? extends T> rn = r.next;
             head = (rn == r) ? null : rn;
+            // 表示引用r已经从ReferenceQueue中移除
             r.queue = NULL;
+            // 自连接，方便回收
             r.next = r;
             queueLength--;
             if (r instanceof FinalReference) {

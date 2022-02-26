@@ -30,6 +30,7 @@ import sun.misc.JavaLangRefAccess;
 import sun.misc.SharedSecrets;
 
 /**
+ * 源码参考：https://segmentfault.com/a/1190000039668399
  * Abstract base class for reference objects.  This class defines the
  * operations common to all reference objects.  Because reference objects are
  * implemented in close cooperation with the garbage collector, this class may
@@ -88,7 +89,7 @@ public abstract class Reference<T> {
      * discovered objects through the discovered field. The discovered
      * field is also used for linking Reference objects in the pending list.
      */
-
+    // 引用的对象
     private T referent;         /* Treated specially by GC */
 
     /**
@@ -100,6 +101,12 @@ public abstract class Reference<T> {
      */
     volatile ReferenceQueue<? super T> queue;
 
+    /**
+     * Active：新创建的 Reference 实例为 Active 状态。当垃圾回收器检测到 Reference 中管理的对象为不可达时，如果该 Reference 实例注册了队列，则进入 Pending 状态，否则进入 Inactive 状态。
+     * Pending：在 pending-Reference 列表中的元素，等待 Reference-handler 线程将其存入 ReferenceQueue 队列。未注册的实例不会到达这个状态。
+     * Enqueued：在 ReferenceQueue 队列中的元素。当实例从 ReferenceQueue 队列中删除时，进入 Inactive 状态。未注册的实例不会到达这个状态。
+     * Inactive：一旦实例变为 Inactive (非活动)状态，它的状态将不再更改。
+     */
     /* When active:   NULL,构造时没有注册到相应引用队列上
      *     pending:   this
      *    Enqueued:   next reference in queue (or this if last)
@@ -117,6 +124,7 @@ public abstract class Reference<T> {
      */
     /**
      * jvm控制，表示下一个要被回收的对象
+     * 在GC时，JVM底层会维护一个叫DiscoveredList的链表，存放的是Reference对象，discovered字段指向的就是链表中的下一个元素，由JVM设置
      */
     transient private Reference<T> discovered;  /* used by VM */
 
@@ -136,7 +144,17 @@ public abstract class Reference<T> {
      * list uses the discovered field to link its elements.
      */
     /**
+     * 在 Reference 实例所管理的对象被垃圾回收器检测为不可达时，垃圾回收器会把该 Reference 添加到 pending-Reference 列表中，这是一个非常轻量级的操作。
      * pending列表中下一个要进入引用队列的对象(这个对象已经被gc),ReferenceHandler线程负责加入队列
+     * Reference 实例会默认启动一个 ReferenceHandler 守护线程，不停地尝试从 pending-Reference 列表中取得被回收的 Reference 实例。当获取成功时，ReferenceHandler 线程会把该 Reference 存入 ReferenceQueue 队列。
+     *
+     *
+     /* pending-Reference列表，存储等待进入ReferenceQueue队列的引用。
+     * 垃圾回收器向该列表添加元素，而Reference-handler线程向该列表移除元素。
+     * 操作pending-Reference列表需要使用lock对象。
+     * pending-Reference列表使用discovered指针来访问元素。
+     *
+     * 等待加入queue的Reference对象，在GC时由JVM设置，会有一个java层的线程(ReferenceHandler)源源不断的从pending中提取元素加入到queue
      */
     private static Reference<Object> pending = null;
 
@@ -189,6 +207,10 @@ public abstract class Reference<T> {
      */
     /**
      * 将失去引用的Reference对象加入到所属的引用队列中
+     *
+     * 1. 从 pending 属性取得 GC 回收时存入 pending-Reference 列表中对象。
+     * 2. 将 pending 指向 pending-Reference 列表的下一个节点。
+     * 3. 如果 ReferenceQueue 不为空，则把被回收的对象入队。
      * @param waitForNotify
      * @return
      */
@@ -206,6 +228,7 @@ public abstract class Reference<T> {
                     // 如果是cleaner对象，则记录下来
                     c = r instanceof Cleaner ? (Cleaner) r : null;
                     // unlink 'r' from 'pending' chain
+                    // 将pending指向pending-reference列表的下一个节点
                     pending = r.discovered;
                     r.discovered = null;
                 } else {
