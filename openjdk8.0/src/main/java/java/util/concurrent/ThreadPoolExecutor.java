@@ -1025,9 +1025,10 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 // 获取线程数量
                 int wc = workerCountOf(c);
                 if (wc >= CAPACITY ||
+                        // 线程数 >= 核心线程数的时候，就要开始判断阻塞队列是否已满
                         wc >= (core ? corePoolSize : maximumPoolSize))
                     return false;
-                if (compareAndIncrementWorkerCount(c))
+                if (compareAndIncrementWorkerCount(c)) // workCount + 1
                     break retry;
                 c = ctl.get();  // Re-read ctl
                 // 如果状态改变了，重新循环操作
@@ -1341,16 +1342,16 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * methods instead of this general purpose constructor.
      *
      * @param corePoolSize    the number of threads to keep in the pool, even
-     *                        if they are idle, unless {@code allowCoreThreadTimeOut} is set
+     *                        if they are idle, unless {@code allowCoreThreadTimeOut} is set 线程池核心线程数
      * @param maximumPoolSize the maximum number of threads to allow in the
-     *                        pool
+     *                        pool 线程池最大线程数
      * @param keepAliveTime   when the number of threads is greater than
      *                        the core, this is the maximum time that excess idle threads
-     *                        will wait for new tasks before terminating.
-     * @param unit            the time unit for the {@code keepAliveTime} argument
+     *                        will wait for new tasks before terminating. 当线程数大于核心线程数时，多余的空闲线程存活的最长时间
+     * @param unit            the time unit for the {@code keepAliveTime} argument 时间单位
      * @param workQueue       the queue to use for holding tasks before they are
      *                        executed.  This queue will hold only the {@code Runnable}
-     *                        tasks submitted by the {@code execute} method.
+     *                        tasks submitted by the {@code execute} method. 任务队列，用来储存等待执行任务的队列
      * @throws IllegalArgumentException if one of the following holds:<br>
      *                                  {@code corePoolSize < 0}<br>
      *                                  {@code keepAliveTime < 0}<br>
@@ -1453,9 +1454,9 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      *                        executed.  This queue will hold only the {@code Runnable}
      *                        tasks submitted by the {@code execute} method.
      * @param threadFactory   the factory to use when the executor
-     *                        creates a new thread
+     *                        creates a new thread  线程工厂，用来创建线程，一般默认即可
      * @param handler         the handler to use when execution is blocked
-     *                        because the thread bounds and queue capacities are reached
+     *                        because the thread bounds and queue capacities are reached 拒绝策略，当线程池中的线程数达到maxPoolSize并且队列已满时的拒绝策略
      * @throws IllegalArgumentException if one of the following holds:<br>
      *                                  {@code corePoolSize < 0}<br>
      *                                  {@code keepAliveTime < 0}<br>
@@ -1497,7 +1498,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
      * executor has been shutdown or because its capacity has been reached,
      * the task is handled by the current {@code RejectedExecutionHandler}.
      *
-     * @param command the task to execute
+     * @param command the task to execute RunnableFuture对象
      * @throws RejectedExecutionException at discretion of
      *                                    {@code RejectedExecutionHandler}, if the task
      *                                    cannot be accepted for execution
@@ -1757,6 +1758,7 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
     }
 
     /**
+     * 启动一个核心线程
      * Starts a core thread, causing it to idly wait for work. This
      * overrides the default policy of starting core threads only when
      * new tasks are executed. This method will return {@code false}

@@ -175,6 +175,7 @@ public class Executors {
     }
 
     /**
+     * 只创建一个线程，它只会用唯一的工作线程来执行任务，保证所有任务按照指定顺序FIFO-LIFo优先级执行
      * Creates an Executor that uses a single worker thread operating
      * off an unbounded queue, and uses the provided ThreadFactory to
      * create a new thread when needed. Unlike the otherwise
@@ -214,8 +215,8 @@ public class Executors {
      */
     public static ExecutorService newCachedThreadPool() {
         return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
-                                      60L, TimeUnit.SECONDS,
-                                      new SynchronousQueue<Runnable>());
+                60L, TimeUnit.SECONDS,
+                new SynchronousQueue<Runnable>());
     }
 
     /**

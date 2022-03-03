@@ -359,6 +359,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                         else
                             return null;
                     } else if (casHead(h, s = snode(s, e, h, mode))) {
+                        // 正常情况下，put线程阻塞在这个方法,s.waiter=Thread.currentThread()
                         SNode m = awaitFulfill(s, timed, nanos);
                         if (m == s) {               // wait was cancelled
                             clean(s);
@@ -380,6 +381,7 @@ public class SynchronousQueue<E> extends AbstractQueue<E>
                                 break;              // restart main loop
                             }
                             SNode mn = m.next;
+                            // 正常情况下，take操作会执行到这里 唤醒阻塞噻put的生产者线程 LockSupport#unpark(waiter)
                             if (m.tryMatch(s)) {
                                 casHead(s, mn);     // pop both s and m
                                 return (E) ((mode == REQUEST) ? m.item : s.item);

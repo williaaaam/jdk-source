@@ -46,6 +46,7 @@ import java.util.Spliterators;
 import java.util.Spliterator;
 
 /**
+ * 有界阻塞队列
  * A bounded {@linkplain BlockingQueue blocking queue} backed by an
  * array.  This queue orders elements FIFO (first-in-first-out).  The
  * <em>head</em> of the queue is that element that has been on the
@@ -83,7 +84,7 @@ import java.util.Spliterator;
 
 /**
  * 数组实现的有界阻塞队列，支持公平锁和非公平锁
- * 可重入锁和这个锁生成的两个条件对象进行并发控制
+ * 利用可重入锁和这个锁生成的两个条件对象进行并发控制
  *
  * @param <E>
  */

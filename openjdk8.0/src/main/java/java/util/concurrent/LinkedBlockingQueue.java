@@ -47,6 +47,7 @@ import java.util.Spliterators;
 import java.util.function.Consumer;
 
 /**
+ * 链表结构组成的有界队列,默认容量Integer.MAX_VALUE
  * An optionally-bounded {@linkplain BlockingQueue blocking queue} based on
  * linked nodes.
  * This queue orders elements FIFO (first-in-first-out).

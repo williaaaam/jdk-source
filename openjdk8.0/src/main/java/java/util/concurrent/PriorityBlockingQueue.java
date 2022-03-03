@@ -109,7 +109,8 @@ import sun.misc.SharedSecrets;
 
 
 /**
- * PriorityBlockingQueue是一个支持优先级的无界阻塞队列。默认情况下元素采用自然顺序升序排序
+ * PriorityBlockingQueue是一个支持线程优先级的无界阻塞队列。
+ * 默认情况下元素采用自然顺序升序排序
  * 不保证同优先级元素顺序
  * 会自动扩容
  * 物理上数组实现，逻辑上堆结构实现的
@@ -390,8 +391,10 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
         while (k > 0) {
             int parent = (k - 1) >>> 1;
             Object e = array[parent];
+            // PECS
             if (key.compareTo((T) e) >= 0)
                 break;
+            // e > key
             array[k] = e;
             k = parent;
         }
@@ -526,7 +529,7 @@ public class PriorityBlockingQueue<E> extends AbstractQueue<E>
             // 扩容
             tryGrow(array, cap);
         try {
-            // 根据比较器做不通的处理
+            // 根据比较器做不同的处理
             Comparator<? super E> cmp = comparator;
             if (cmp == null)
                 siftUpComparable(n, e, array);
