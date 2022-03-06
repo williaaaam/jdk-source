@@ -363,6 +363,8 @@ public class HashMap<K,V>
      * Returns index for hash code h.
      */
     static int indexFor(int h, int length) {
+        // 实际上等同于h%length即Hash值对数组长度取模
+        // 只有当数组长度=2的幂时，h&length-1 == h%length
         return h & (length-1);
     }
 
@@ -495,15 +497,16 @@ public class HashMap<K,V>
      * Offloaded version of put for null keys
      */
     private V putForNullKey(V value) {
-        for (Entry<K,V> e = table[0]; e != null; e = e.next) {
+        for (Entry<K,V> e = table[0]; e != null; e = e.next) { // 遍历第一个桶的链表，直到找到key==null的节点
             if (e.key == null) {
                 V oldValue = e.value;
-                e.value = value;
+                e.value = value; // 覆盖旧值
                 e.recordAccess(this);
                 return oldValue;
             }
         }
         modCount++;
+        // 将节点插入第一个桶中
         addEntry(0, null, value, 0);
         return null;
     }
@@ -861,9 +864,10 @@ public class HashMap<K,V>
             // 容量为之前表长的两倍
             resize(2 * table.length);
             hash = (null != key) ? hash(key) : 0;
+            // 桶下标
             bucketIndex = indexFor(hash, table.length);
         }
-
+        // 头插法插入节点
         createEntry(hash, key, value, bucketIndex);
     }
 

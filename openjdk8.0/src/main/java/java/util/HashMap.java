@@ -238,11 +238,13 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
 
     /**
+     * HashMap底层数组初始化容量为16
      * The default initial capacity - MUST be a power of two.
      */
     static final int DEFAULT_INITIAL_CAPACITY = 1 << 4; // aka 16
 
     /**
+     * 最大容量即2的30次幂
      * The maximum capacity, used if a higher value is implicitly specified
      * by either of the constructors with arguments.
      * MUST be a power of two <= 1<<30.
@@ -250,11 +252,13 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     static final int MAXIMUM_CAPACITY = 1 << 30;
 
     /**
+     * 默认负载因子
      * The load factor used when none specified in constructor.
      */
     static final float DEFAULT_LOAD_FACTOR = 0.75f;
 
     /**
+     * 树化阈值：链接节点个数大于8，并且数组长度大于64，转为红黑树
      * The bin count threshold for using a tree rather than list for a
      * bin.  Bins are converted to trees when adding an element to a
      * bin with at least this many nodes. The value must be greater
@@ -265,6 +269,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     static final int TREEIFY_THRESHOLD = 8;
 
     /**
+     * 当链表长度小于6，红黑树转回链表
      * The bin count threshold for untreeifying a (split) bin during a
      * resize operation. Should be less than TREEIFY_THRESHOLD, and at
      * most 6 to mesh with shrinkage detection under removal.
@@ -272,6 +277,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     static final int UNTREEIFY_THRESHOLD = 6;
 
     /**
+     * 当数组容量大于64，且链表长度大于8，链表转为红黑树
      * The smallest table capacity for which bins may be treeified.
      * (Otherwise the table is resized if too many nodes in a bin.)
      * Should be at least 4 * TREEIFY_THRESHOLD to avoid conflicts
@@ -284,9 +290,11 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * TreeNode subclass, and in LinkedHashMap for its Entry subclass.)
      */
     static class Node<K,V> implements Map.Entry<K,V> {
+        // 扰动后的hash值
         final int hash;
         final K key;
         V value;
+        // 链表下一个节点或红黑树节点
         Node<K,V> next;
 
         Node(int hash, K key, V value, Node<K,V> next) {
@@ -395,6 +403,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     /* ---------------- Fields -------------- */
 
     /**
+     * 第一次使用的时候进行初始化，长度一定是2的幂
      * The table, initialized on first use, and resized as
      * necessary. When allocated, length is always a power of two.
      * (We also tolerate length zero in some operations to allow
@@ -409,11 +418,13 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     transient Set<Map.Entry<K,V>> entrySet;
 
     /**
+     * HashMap 键值对数量
      * The number of key-value mappings contained in this map.
      */
     transient int size;
 
     /**
+     * 记录HashMap结构上修改的次数：rehash或修改键值对数量
      * The number of times this HashMap has been structurally modified
      * Structural modifications are those that change the number of mappings in
      * the HashMap or otherwise modify its internal structure (e.g.,
@@ -431,6 +442,8 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     // Additionally, if the table array has not been allocated, this
     // field holds the initial array capacity, or zero signifying
     // DEFAULT_INITIAL_CAPACITY.)
+
+    // 扩容阈值
     int threshold;
 
     /**
@@ -561,10 +574,14 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     public V get(Object key) {
         Node<K,V> e;
+        // 1. 计算需获取数据的hash值
+        // 2. 通过getNode（）获取所查询的数据 ->>分析1
+        // 3. 获取后，判断数据是否为空
         return (e = getNode(hash(key), key)) == null ? null : e.value;
     }
 
     /**
+     * 依次在数组、红黑树和链表中寻找
      * Implements Map.get and related methods
      *
      * @param hash hash for key
@@ -573,6 +590,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     final Node<K,V> getNode(int hash, Object key) {
         Node<K,V>[] tab; Node<K,V> first, e; int n; K k;
+        // 1. 计算存放在数组table中的位置
         if ((tab = table) != null && (n = tab.length) > 0 &&
             (first = tab[(n - 1) & hash]) != null) {
             if (first.hash == hash && // always check first node
@@ -631,42 +649,56 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
                    boolean evict) {
-        Node<K,V>[] tab; Node<K,V> p; int n, i;
+        Node<K, V>[] tab;
+        Node<K, V> p;
+        // n表示数组长度
+        // i表示当前put的数据要放入的桶的位置，即数组下标
+        int n, i;
         if ((tab = table) == null || (n = tab.length) == 0)
             n = (tab = resize()).length;
-        if ((p = tab[i = (n - 1) & hash]) == null)
+        if ((p = tab[i = (n - 1) & hash]) == null) // 桶里面已经存在了数据，接下来就要判断是否覆盖
             // 多线程，此处节点可能会被覆盖，造成线程不安全
             tab[i] = newNode(hash, key, value, null);
         else {
+            // e:用来保存当前遍历节点next节点或新增
+            Node<K, V> e;
+            // e对应的key
+            K k;
             // 比较Key是否相等:hash相等 && key相等
-            Node<K,V> e; K k;
+
             if (p.hash == hash &&
-                ((k = p.key) == key || (key != null && key.equals(k))))
+                    ((k = p.key) == key || (key != null && key.equals(k))))
+                // 临时节点保存旧节点p（存在hash冲突的节点）
                 e = p;
             else if (p instanceof TreeNode)
-                e = ((TreeNode<K,V>)p).putTreeVal(this, tab, hash, key, value);
+                // 是红黑树节点
+                e = ((TreeNode<K, V>) p).putTreeVal(this, tab, hash, key, value);
             else {
                 // 遍历链表，统计链表节点个数，节点个数为8的时候，转为红黑树
+                // 这里表明，与桶中第一个元素的hash值冲突：
+                // 1. 如果当前桶里只有一个元素，即只有桶头，那么会生成链表，将当前的新值赋给桶头的next形成链表
+                // 2. 如果链表已经存在，循环将当前的key依次与链表中的数据作比较
                 for (int binCount = 0; ; ++binCount) {
                     if ((e = p.next) == null) {
                         // 新节点尾插法
                         p.next = newNode(hash, key, value, null);
-                        // 树化
+                        // 树化，减1是因为binCount是从0开始计算的
                         if (binCount >= TREEIFY_THRESHOLD - 1) // -1 for 1st
                             treeifyBin(tab, hash);
                         break;
                     }
                     if (e.hash == hash &&
-                        ((k = e.key) == key || (key != null && key.equals(k))))
+                            ((k = e.key) == key || (key != null && key.equals(k))))
                         break;
                     p = e;
                 }
             }
-            if (e != null) { // existing mapping for key
+            if (e != null) { // existing mapping for key HashMap存在key的映射
                 V oldValue = e.value;
                 if (!onlyIfAbsent || oldValue == null)
-                    e.value = value;
+                    e.value = value; // 覆盖旧值
                 afterNodeAccess(e);
+                // 返回旧值
                 return oldValue;
             }
         }
@@ -689,6 +721,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      */
     final Node<K,V>[] resize() {
         Node<K,V>[] oldTab = table;
+        // 第一次put oldTab为null,在此之后调用resize()是对旧数组扩容，此时oldTab不为空
         int oldCap = (oldTab == null) ? 0 : oldTab.length;
         int oldThr = threshold;
         int newCap, newThr = 0;
@@ -720,25 +753,28 @@ public class HashMap<K,V> extends AbstractMap<K,V>
             for (int j = 0; j < oldCap; ++j) {
                 Node<K,V> e;
                 if ((e = oldTab[j]) != null) {
+                    // 将原始数组中下标j的桶设置null,GC
                     oldTab[j] = null;
                     if (e.next == null)
                         newTab[e.hash & (newCap - 1)] = e;
                     else if (e instanceof TreeNode)
                         ((TreeNode<K,V>)e).split(this, newTab, j, oldCap);
                     else { // preserve order
-                        Node<K,V> loHead = null, loTail = null;
-                        Node<K,V> hiHead = null, hiTail = null;
+                        Node<K,V> loHead = null, loTail = null; // 低位链表(原位置i)
+                        Node<K,V> hiHead = null, hiTail = null; // 高位链表(i+n位置)
                         Node<K,V> next;
                         do {
                             next = e.next;
-                            if ((e.hash & oldCap) == 0) {
+                            // 扩容就是将旧数组的数据迁移到新数组
+                            // 迁移过期的值是否需要重新计算桶位置，判断依据：e.hash & oldCap是否为0
+                            if ((e.hash & oldCap) == 0) { // 如果为0，元素位置在扩容后数组中的位置没有发生改变
                                 if (loTail == null)
-                                    loHead = e;
+                                    loHead = e; // 头结点
                                 else
                                     loTail.next = e;
                                 loTail = e;
                             }
-                            else {
+                            else {// 元素在新数组中位置发生改变,新的下标是(原下标+原数组长度)
                                 if (hiTail == null)
                                     hiHead = e;
                                 else
@@ -748,11 +784,11 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                         } while ((e = next) != null);
                         if (loTail != null) {
                             loTail.next = null;
-                            newTab[j] = loHead;
+                            newTab[j] = loHead; // 下标为原位置 低位链表放到了新数组下标为j的桶里，也就是放到原来的桶，位置保持不变
                         }
                         if (hiTail != null) {
                             hiTail.next = null;
-                            newTab[j + oldCap] = hiHead;
+                            newTab[j + oldCap] = hiHead; // 下标：原位置+原数组长度 j+oldCap <= 旧数组*2-1
                         }
                     }
                 }
@@ -768,10 +804,12 @@ public class HashMap<K,V> extends AbstractMap<K,V>
     final void treeifyBin(Node<K,V>[] tab, int hash) {
         int n, index; Node<K,V> e;
         if (tab == null || (n = tab.length) < MIN_TREEIFY_CAPACITY)
+            // 扩容
             resize();
         else if ((e = tab[index = (n - 1) & hash]) != null) {
             TreeNode<K,V> hd = null, tl = null;
             do {
+                // 新建TreeNode
                 TreeNode<K,V> p = replacementTreeNode(e, null);
                 if (tl == null)
                     hd = p;
@@ -782,6 +820,7 @@ public class HashMap<K,V> extends AbstractMap<K,V>
                 tl = p;
             } while ((e = e.next) != null);
             if ((tab[index] = hd) != null)
+                // 如果桶中已经存在Node，则开始树化
                 hd.treeify(tab);
         }
     }
@@ -1815,16 +1854,22 @@ public class HashMap<K,V> extends AbstractMap<K,V>
      * linked node.
      */
     static final class TreeNode<K,V> extends LinkedHashMap.Entry<K,V> {
+        // 父节点
         TreeNode<K,V> parent;  // red-black tree links
+        // 左子树
         TreeNode<K,V> left;
+        // 右子树
         TreeNode<K,V> right;
+        // 删除辅助节点
         TreeNode<K,V> prev;    // needed to unlink next upon deletion
+        // 颜色
         boolean red;
         TreeNode(int hash, K key, V val, Node<K,V> next) {
             super(hash, key, val, next);
         }
 
         /**
+         * 返回当前节点的根节点
          * Returns root of tree containing this node.
          */
         final TreeNode<K,V> root() {
