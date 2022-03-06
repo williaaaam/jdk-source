@@ -124,6 +124,7 @@ import java.io.*;
  */
 
 /**
+ * HashTable key-value均不能为null
  * HashTable大部分方法都加了synchronized关键字，例如get(),put(),size(),isEmpty(),keys(),contains()等，并发性能较低。
  * get读操作之间互不影响，但还是加了锁，会锁住整张表，不适合用在高并发场景下
  * @param <K>

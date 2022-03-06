@@ -136,6 +136,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     /* ---------------- Constants -------------- */
 
     /**
+     * 16表示的是所有segment中HashEntry的个数
      * The default initial capacity for this table,
      * used when not otherwise specified in a constructor.
      */
@@ -152,10 +153,11 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     static final float DEFAULT_LOAD_FACTOR = 0.75f;
 
     /**
+     * 最多支持16个并发线程操作
      * The default concurrency level for this table, used when not
      * otherwise specified in a constructor.
      */
-    //默认的并发级别，这个参数决定了 Segment 数组的长度
+    // 默认的并发级别，这个参数决定了 Segment 数组的长度
     static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 
     /**
@@ -268,7 +270,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     /**
      * The segments, each of which is a specialized hash table.
      */
-    // Segment 组成的数组，每一个 Segment 都可以看做是一个特殊的 HashMap
+    // Segment 组成的数组，每一个 Segment 都可以看做是一个特殊的 HashTable
     final Segment<K,V>[] segments;
 
     transient Set<K> keySet;
@@ -407,8 +409,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
          * number of retries maintains cache acquired while locating
          * nodes.
          */
-        //这是在 scanAndLockForPut 方法中用到的一个参数，用于计算最大重试次数
-        //获取当前可用的处理器的数量，若大于1，则返回64，否则返回1。
+        // 这是在 scanAndLockForPut 方法中用到的一个参数，用于计算最大重试次数
+        // 获取当前可用的处理器的数量，若大于1，则返回64，否则返回1。
         static final int MAX_SCAN_RETRIES =
             Runtime.getRuntime().availableProcessors() > 1 ? 64 : 1;
 
@@ -416,7 +418,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
          * The per-segment table. Elements are accessed via
          * entryAt/setEntryAt providing volatile semantics.
          */
-        //用于表示每个Segment中的 table，是一个用HashEntry组成的数组
+        // 用于表示每个Segment中的 table，是一个用HashEntry组成的数组
         transient volatile HashEntry<K,V>[] table;
 
         /**
@@ -478,10 +480,10 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             //这里说明一下，tryLock 和 lock 是 ReentrantLock 中的方法，
             //区别是 tryLock 不会阻塞，抢锁成功就返回true，失败就立马返回false，
             //而 lock 方法是，抢锁成功则返回，失败则会进入同步队列，阻塞等待获取锁。
-            HashEntry<K,V> node = tryLock() ? null :
-                scanAndLockForPut(key, hash, value);
+            HashEntry<K,V> node = tryLock() ? null : scanAndLockForPut(key, hash, value);
             V oldValue;
             try {
+                // scanAndLockForPut方法返回才会执行下面的方法
                 HashEntry<K,V>[] tab = table;
                 int index = (tab.length - 1) & hash;
                 HashEntry<K,V> first = entryAt(tab, index);
@@ -492,6 +494,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                         //并且第一个节点，就是要插入的节点，则替换value值，否则继续向后查找
                         if ((k = e.key) == key ||
                             (e.hash == hash && key.equals(k))) {
+                            // 值替换
                             oldValue = e.value;
                             if (!onlyIfAbsent) {
                                 e.value = value;
@@ -499,6 +502,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                             }
                             break;
                         }
+                        //
                         e = e.next;
                     }
                     // 说明当前index位置不存在任何节点，此时first为null，
@@ -512,7 +516,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                             node = new HashEntry<K,V>(hash, key, value, first);
                         int c = count + 1;
                         // 如果当前Segment中的元素大于阈值，并且tab长度没有超过容量最大值，则扩容
-                        if (c > threshold && tab.length < MAXIMUM_CAPACITY)
+                        if (c > threshold && tab.length < MAXIMUM_CAPACITY) // HashMap resize ()条件 ++size > threshold
                             rehash(node);
                         else
                             // //否则，就把当前node设置为index下标位置新的头结点
@@ -615,23 +619,24 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             int retries = -1; // negative while locating node
             while (!tryLock()) {
                 HashEntry<K,V> f; // to recheck first below
-                if (retries < 0) {
+                if (retries < 0) { // 遍历链表
                     if (e == null) {
                         if (node == null) // speculatively create node
                             node = new HashEntry<K,V>(hash, key, value, null);
-                        retries = 0;
+                        retries = 0; // 遍历到链表尾部或者链表头结点为null
                     }
                     else if (key.equals(e.key))
-                        retries = 0;
+                        retries = 0; // key相同
                     else
                         e = e.next;
                 }
-                else if (++retries > MAX_SCAN_RETRIES) {
+                else if (++retries > MAX_SCAN_RETRIES) { // 默认自旋64次
+                    // 阻塞加锁
                     lock();
                     break;
                 }
-                else if ((retries & 1) == 0 &&
-                         (f = entryForHash(this, hash)) != first) {
+                else if ((retries & 1) == 0 && // 循环偶数次
+                         (f = entryForHash(this, hash)) != first) { // 链表头结点发生了改变，头插法改变了头结点，所以需要重新遍历
                     e = first = f; // re-traverse if entry changed
                     retries = -1;
                 }
@@ -806,7 +811,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         long u = (k << SSHIFT) + SBASE; // raw offset
         Segment<K,V> seg;
         //从内存中取到最新的下标位置的 Segment 对象，判断是否为空，(1)
-        if ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u)) == null) {
+        if ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u)) == null) { // 1
             //之前构造函数说了，s0是作为一个原型对象，用于创建新的 Segment 对象
             Segment<K,V> proto = ss[0]; // use segment 0 as prototype
             int cap = proto.table.length;
@@ -816,16 +821,16 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             //把 Segment 对应的 HashEntry 数组先创建出来
             HashEntry<K,V>[] tab = (HashEntry<K,V>[])new HashEntry[cap];
             //再次检查 K 下标位置的 Segment 是否为空， (2)
-            if ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u))
-                == null) { // recheck
+            if ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u)) == null) { // recheck // 2
                 //此处把 Segment 对象创建出来，并赋值给 s，
                 Segment<K,V> s = new Segment<K,V>(lf, threshold, tab);
                 //自旋检查 K 下标位置的 Segment 是否为空， (3)
                 //若不为空，则说明有其它线程抢先创建成功，并且已经成功同步到主内存中了，
                 //则把它取出来，并返回
-                while ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u))
+                while ((seg = (Segment<K,V>)UNSAFE.getObjectVolatile(ss, u)) // 3
                        == null) {
-                    if (UNSAFE.compareAndSwapObject(ss, u, null, seg = s))
+                    // cas将新创建的segment放入segment数组下标u处
+                    if (UNSAFE.compareAndSwapObject(ss, u, null, seg = s)) // cas+自旋
                         break;
                 }
             }
@@ -892,8 +897,9 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             ++sshift;
             ssize <<= 1;
         }
+        // 28
         this.segmentShift = 32 - sshift;
-        // Segment掩码
+        // Segment掩码 15
         this.segmentMask = ssize - 1;
         if (initialCapacity > MAXIMUM_CAPACITY)
             initialCapacity = MAXIMUM_CAPACITY;
@@ -909,6 +915,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         Segment<K,V> s0 =
             new Segment<K,V>(loadFactor, (int)(cap * loadFactor),
                              (HashEntry<K,V>[])new HashEntry[cap]);
+        // segments数组大小一旦指定就不会改变了，ConcurrentHashMap扩容的是segment中HashEntry，扩容不影响其他segment
+        // 默认大小是16
         Segment<K,V>[] ss = (Segment<K,V>[])new Segment[ssize];
         //三个参数，创建一个Segment对象，保存到S0对象中。后边在 ensureSegment 方法会用到S0作为原型对象去创建对应的Segment。
         //把S0存到Segment数组中去。在这里，我们就可以发现，此时只是创建了一个Segment数组，
@@ -1220,11 +1228,14 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         int hash = hash(key);
         // 上边我们计算出的 segmentShift默认值为28，因此hash值右移28位，说明此时用的是hash的高4位，
         // 然后把它和掩码15进行与运算，得到的值一定是一个 0000 ~ 1111 范围内的值，即 0~15 。
+        // 首先查找在segment数组中的位置
         int j = (hash >>> segmentShift) & segmentMask;
         //这里是用Unsafe类的原子操作找到Segment数组中j下标的 Segment 对象
         if ((s = (Segment<K,V>)UNSAFE.getObject          // nonvolatile; recheck
              (segments, (j << SSHIFT) + SBASE)) == null) //  in ensureSegment
             // 初始化j下标的Segment
+            // 生成segment对象
+            // 多线程下，可能会同时进入这个方法
             s = ensureSegment(j);
         // 在此segment添加元素
         return s.put(key, hash, value, false);
@@ -1695,7 +1706,9 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
             UNSAFE = sun.misc.Unsafe.getUnsafe();
             Class tc = HashEntry[].class;
             Class sc = Segment[].class;
+            // HashEntry数组内存起始地址
             TBASE = UNSAFE.arrayBaseOffset(tc);
+            // segment数组内存起始地址
             SBASE = UNSAFE.arrayBaseOffset(sc);
             ts = UNSAFE.arrayIndexScale(tc);
             ss = UNSAFE.arrayIndexScale(sc);
