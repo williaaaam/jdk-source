@@ -153,7 +153,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     static final float DEFAULT_LOAD_FACTOR = 0.75f;
 
     /**
-     * 最多支持16个并发线程操作
+     * 这里所谓的并发度就是能同时操作ConcurrentHashMap（后文简称为chmap）的线程的最大数量;
+     * 由于chmap采用的存储是分段存储，即多个segement，加锁的单位为segment，所以一个cmap的并行度就是segments数组的长度
      * The default concurrency level for this table, used when not
      * otherwise specified in a constructor.
      */
@@ -262,6 +263,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     final int segmentMask;
 
     /**
+     * 2的sshift次方=ssize
      * Shift value for indexing within segments.
      */
     //和 segmentMask 配合使用来定位 Segment 的数组下标
@@ -286,6 +288,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         final int hash;
         final K key;
         // volatile修饰，保证内存可见性和通过内存屏障实现禁止指令重排序
+        // happen-before
         volatile V value;
         // 指向下一个节点
         volatile HashEntry<K,V> next;
@@ -422,6 +425,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
         transient volatile HashEntry<K,V>[] table;
 
         /**
+         * 记录每个Segment桶中键值对的个数
          * The number of elements. Accessed only either within locks
          * or among other volatile reads that maintain visibility.
          */
@@ -489,7 +493,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                 HashEntry<K,V> first = entryAt(tab, index);
                 for (HashEntry<K,V> e = first;;) {
                     // 如果节点不为空
-                    if (e != null) {
+                    if (e != null) { //若不为null，则持续查找，知道找到key和hash值相同的节点，将其value更新
                         K k;
                         //并且第一个节点，就是要插入的节点，则替换value值，否则继续向后查找
                         if ((k = e.key) == key ||
@@ -517,6 +521,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                         int c = count + 1;
                         // 如果当前Segment中的元素大于阈值，并且tab长度没有超过容量最大值，则扩容
                         if (c > threshold && tab.length < MAXIMUM_CAPACITY) // HashMap resize ()条件 ++size > threshold
+                            // 被调用时已经处于上锁状态
                             rehash(node);
                         else
                             // //否则，就把当前node设置为index下标位置新的头结点
@@ -568,15 +573,14 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                 HashEntry<K,V> e = oldTable[i];
                 if (e != null) {
                     HashEntry<K,V> next = e.next;
+                    // 计算在新数组的索引
                     int idx = e.hash & sizeMask;
                     if (next == null)   //  Single node on list
                         newTable[idx] = e;
                     else { // Reuse consecutive sequence at same slot
                         HashEntry<K,V> lastRun = e;
                         int lastIdx = idx;
-                        for (HashEntry<K,V> last = next;
-                             last != null;
-                             last = last.next) {
+                        for (HashEntry<K,V> last = next; last != null; last = last.next) {
                             int k = last.hash & sizeMask;
                             if (k != lastIdx) {
                                 lastIdx = k;
@@ -590,12 +594,14 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
                             int h = p.hash;
                             int k = h & sizeMask;
                             HashEntry<K,V> n = newTable[k];
+                            // 头插法
                             newTable[k] = new HashEntry<K,V>(h, p.key, v, n);
                         }
                     }
                 }
             }
             int nodeIndex = node.hash & sizeMask; // add the new node
+            // 头插法
             node.setNext(newTable[nodeIndex]);
             newTable[nodeIndex] = node;
             table = newTable;
@@ -841,6 +847,7 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     // Hash-based segment and entry accesses
 
     /**
+     * 假设Segment的数量是2的n次方，根据元素的hash值的高n位就可以确定元素到底在哪一个Segment中
      * Get the segment for the given hash
      */
     @SuppressWarnings("unchecked")
@@ -1020,6 +1027,8 @@ public class ConcurrentHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /**
+     * 在指定阈值范围内不上锁统计，若其中连续两次统计结果一致，则结束返回，若一直不相同且达到了阈值，则全部分段上锁，统计，解锁，返回。
+     * size( )可能需要遍历整个ConcurrentHashMap，而且每个segment桶都要加锁
      * Returns the number of key-value mappings in this map.  If the
      * map contains more than <tt>Integer.MAX_VALUE</tt> elements, returns
      * <tt>Integer.MAX_VALUE</tt>.
