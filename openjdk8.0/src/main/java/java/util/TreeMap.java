@@ -31,6 +31,9 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
+ * TreeMap底层采用的是红黑树实现的，支持范围查询和条件查询
+ * <p>
+ *     增删改查复杂度 O(lgn)
  * A Red-Black tree based {@link NavigableMap} implementation.
  * The map is sorted according to the {@linkplain Comparable natural
  * ordering} of its keys, or by a {@link Comparator} provided at map
@@ -342,6 +345,7 @@ public class TreeMap<K,V>
     final Entry<K,V> getEntry(Object key) {
         // Offload comparator-based version for sake of performance
         if (comparator != null)
+            // 自定义比较器
             return getEntryUsingComparator(key);
         if (key == null)
             throw new NullPointerException();
@@ -355,12 +359,14 @@ public class TreeMap<K,V>
             else if (cmp > 0)
                 p = p.right;
             else
+                // 比较器判断相等
                 return p;
         }
         return null;
     }
 
     /**
+     * 自定义比较器
      * Version of getEntry using comparator. Split off from getEntry
      * for performance. (This is not worth doing for most methods,
      * that are less dependent on comparator performance, but is
@@ -461,15 +467,17 @@ public class TreeMap<K,V>
         Entry<K,V> p = root;
         while (p != null) {
             int cmp = compare(key, p.key);
+            // key比根节点小，找左节点
             if (cmp < 0) {
                 if (p.left != null)
                     p = p.left;
                 else
                     return p;
+                // key比根节点大，找右节点
             } else {
-                if (p.right != null) {
+                if (p.right != null) {         // 右节点不为空，找到目标值
                     p = p.right;
-                } else {
+                } else {       // 右节点为空，找它的父节点
                     Entry<K,V> parent = p.parent;
                     Entry<K,V> ch = p;
                     while (parent != null && ch == parent.right) {
@@ -489,18 +497,21 @@ public class TreeMap<K,V>
      * the specified key), returns {@code null}.
      */
     final Entry<K,V> getLowerEntry(K key) {
+        // 从根节点遍历
         Entry<K,V> p = root;
         while (p != null) {
             int cmp = compare(key, p.key);
+            // key比根节点大，找右节点
             if (cmp > 0) {
                 if (p.right != null)
                     p = p.right;
                 else
                     return p;
             } else {
-                if (p.left != null) {
+                // key比根节点小，找左节点
+                if (p.left != null) {    // 左节点不为空表示找到了
                     p = p.left;
-                } else {
+                } else { // 左节点为空需要找它的父节点
                     Entry<K,V> parent = p.parent;
                     Entry<K,V> ch = p;
                     while (parent != null && ch == parent.left) {
@@ -533,7 +544,9 @@ public class TreeMap<K,V>
      *         does not permit null keys
      */
     public V put(K key, V value) {
+        // 获取根节点
         Entry<K,V> t = root;
+        // 根节点为空，插入的元素就作为根节点
         if (t == null) {
             compare(key, key); // type (and possibly null) check
 
@@ -546,25 +559,29 @@ public class TreeMap<K,V>
         Entry<K,V> parent;
         // split comparator and comparable paths
         Comparator<? super K> cpr = comparator;
-        if (cpr != null) {
+        if (cpr != null) {    // 根据排序规则遍历寻找插入位置，替换key的value
             do {
                 parent = t;
                 cmp = cpr.compare(key, t.key);
                 if (cmp < 0)
-                    t = t.left;
+                    t = t.left;// 左子树
                 else if (cmp > 0)
-                    t = t.right;
+                    t = t.right; // 右子树
                 else
+                    // 值替换
                     return t.setValue(value);
             } while (t != null);
         }
         else {
             if (key == null)
+                // TreeMap key不能为null
                 throw new NullPointerException();
             @SuppressWarnings("unchecked")
-                Comparable<? super K> k = (Comparable<? super K>) key;
+            // 如果key没有实现Comparable接口，则会报 java.lang.ClassCastException 类型转换异常
+            Comparable<? super K> k = (Comparable<? super K>) key;
             do {
                 parent = t;
+                // 比较形参key和节点中保存key的大小
                 cmp = k.compareTo(t.key);
                 if (cmp < 0)
                     t = t.left;
@@ -574,10 +591,13 @@ public class TreeMap<K,V>
                     return t.setValue(value);
             } while (t != null);
         }
+        // 执行到这里说明没有找到相应的key
         Entry<K,V> e = new Entry<>(key, value, parent);
         if (cmp < 0)
+            // 左节点
             parent.left = e;
         else
+            // 右节点
             parent.right = e;
         fixAfterInsertion(e);
         size++;
@@ -586,6 +606,7 @@ public class TreeMap<K,V>
     }
 
     /**
+     * 删除完元素，还要调整树的结构
      * Removes the mapping for this key from this TreeMap if present.
      *
      * @param  key key for which mapping should be removed
@@ -2143,17 +2164,23 @@ public class TreeMap<K,V>
     }
 
     /**
+     * 中序遍历
+     * <p>
+     * 也就是先遍历到最左边的子节点，然后再开始往回走，再继续往右走，知道整棵树都遍历完，而因为红黑树任意节点的左子节点都是比它小，右子节点比它大，所以这样遍历刚好就是按照顺序遍历的。
+     *
      * Returns the successor of the specified Entry, or null if no such.
      */
     static <K,V> TreeMap.Entry<K,V> successor(Entry<K,V> t) {
         if (t == null)
             return null;
+        // 有右子节点的节点，后继节点就是右子节点的最左节点，因为最左节点是右子树的最小节点
         else if (t.right != null) {
             Entry<K,V> p = t.right;
             while (p.left != null)
                 p = p.left;
             return p;
         } else {
+            // 如果右子树为空，则寻找当前节点所在左子树的第一个祖先节点，然后查找右子节点
             Entry<K,V> p = t.parent;
             Entry<K,V> ch = t;
             while (p != null && ch == p.right) {
@@ -2255,10 +2282,11 @@ public class TreeMap<K,V>
 
     /** From CLR */
     private void fixAfterInsertion(Entry<K,V> x) {
+        // 新插入的节点是红色
         x.color = RED;
 
-        while (x != null && x != root && x.parent.color == RED) {
-            if (parentOf(x) == leftOf(parentOf(parentOf(x)))) {
+        while (x != null && x != root && x.parent.color == RED) {  // x父节点是红色
+            if (parentOf(x) == leftOf(parentOf(parentOf(x)))) { // x父节点是左孩子
                 Entry<K,V> y = rightOf(parentOf(parentOf(x)));
                 if (colorOf(y) == RED) {
                     setColor(parentOf(x), BLACK);
@@ -2275,8 +2303,8 @@ public class TreeMap<K,V>
                     rotateRight(parentOf(parentOf(x)));
                 }
             } else {
-                Entry<K,V> y = leftOf(parentOf(parentOf(x)));
-                if (colorOf(y) == RED) {
+                Entry<K,V> y = leftOf(parentOf(parentOf(x))); // y是x叔父节点
+                if (colorOf(y) == RED) { // 叔父节点是红色
                     setColor(parentOf(x), BLACK);
                     setColor(y, BLACK);
                     setColor(parentOf(parentOf(x)), RED);
@@ -2304,6 +2332,7 @@ public class TreeMap<K,V>
 
         // If strictly internal, copy successor's element to p and then make p
         // point to successor.
+        // 被删除节点的左子节点和右子节点都不为空，那么就用被删除节点的中序后继节点代替被删除节点节点
         if (p.left != null && p.right != null) {
             Entry<K,V> s = successor(p);
             p.key = s.key;
@@ -2312,6 +2341,7 @@ public class TreeMap<K,V>
         } // p has 2 children
 
         // Start fixup at replacement node, if it exists.
+        // replacement为替代节点，如果被删除的左子节点存在那么就用左子节点替代，否则用右子节点替代
         Entry<K,V> replacement = (p.left != null ? p.left : p.right);
 
         if (replacement != null) {
@@ -2330,9 +2360,9 @@ public class TreeMap<K,V>
             // Fix replacement
             if (p.color == BLACK)
                 fixAfterDeletion(replacement);
-        } else if (p.parent == null) { // return if we are the only node.
+        } else if (p.parent == null) { // return if we are the only node. // 没找到就表示整个树空了，根节点置空
             root = null;
-        } else { //  No children. Use self as phantom replacement and unlink.
+        } else { //  No children. Use self as phantom replacement and unlink.  // 没有子节点，直接删除当前节点
             if (p.color == BLACK)
                 fixAfterDeletion(p);
 
